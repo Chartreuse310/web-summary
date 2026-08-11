@@ -291,7 +291,8 @@ function getStats() {
     totalCost: totals.totalCost,
     byModel,
     byPlatform,
-    topTags
+    topTags,
+    distinctTags: Object.keys(tagCount).length // 去重标签总数（供首页「标签量」卡片）
   };
 }
 

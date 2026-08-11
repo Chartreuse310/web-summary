@@ -32,6 +32,7 @@
   function switchTab(name) {
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + name));
+    if (name === 'home') loadHome();
     if (name === 'library') loadLibrary();
     if (name === 'stats') loadStats();
     if (name === 'settings') renderProviderList();
@@ -824,6 +825,116 @@
     loadLibrary();
   }
 
+  // ============ 首页 Tab ============
+  async function loadHome() {
+    const [{ ok: okStats, d: stats }, { ok: okTrend, d: trend }, { ok: okRecent, d: recent }] =
+      await Promise.all([
+        api('/api/stats'),
+        api('/api/stats/trend?days=365'),
+        api('/api/clippings?sort=recent&limit=20')
+      ]);
+    if (!okStats || !okTrend || !okRecent) {
+      $('homeOneliner').textContent = '数据加载失败，请稍后重试。';
+      return;
+    }
+    renderHomeStats(stats);
+    renderHomeOneliner(trend, recent.items || []);
+    renderHomeRecent(recent.items || []);
+    renderHeatmap(trend);
+  }
+
+  function renderHomeStats(stats) {
+    $('homeCount').textContent = fmtNum(stats.count);
+    $('homeTags').textContent = fmtNum(stats.distinctTags ?? 0);
+    $('homeTokens').textContent = fmtNum(stats.totalTokens);
+  }
+
+  // 智能聚合「一句话总结近期在看」（零 LLM，纯前端模板生成）
+  function renderHomeOneliner(trend, recentItems) {
+    const now = new Date();
+    const sevenAgo = new Date(now.getTime() - 7 * 86400000);
+
+    // 近 7 天篇数 / token（权威，来自逐日趋势）
+    const inLast7 = trend.filter((d) => new Date(d.date + 'T00:00:00Z') >= sevenAgo);
+    const n7 = inLast7.reduce((s, d) => s + (d.count || 0), 0);
+    const tok7 = inLast7.reduce((s, d) => s + (d.tokens || 0), 0);
+
+    // 近 7 天标签（来自近期剪藏样本）
+    const tagFreq = {};
+    recentItems
+      .filter((it) => new Date(it.savedAt) >= sevenAgo)
+      .forEach((it) => (it.tags || []).forEach((t) => { tagFreq[t] = (tagFreq[t] || 0) + 1; }));
+    const topTags = Object.entries(tagFreq).sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]);
+
+    let text;
+    if (n7 === 0) {
+      text = '最近一周还没有新的收藏。去「生成摘要」捕捉下一篇值得留存的内容吧。';
+    } else if (topTags.length) {
+      const tagList = topTags.map((t) => '「' + t + '」').join('、');
+      text = '近 7 天收藏了 ' + n7 + ' 篇，主要围绕 ' + tagList + ' 等主题。';
+      if (tok7 > 0) text += '累计消耗约 ' + fmtNum(tok7) + ' tokens。';
+    } else {
+      text = '近 7 天收藏了 ' + n7 + ' 篇，尚未添加标签。';
+    }
+    $('homeOneliner').textContent = text;
+  }
+
+  function renderHomeRecent(items) {
+    const wrap = $('homeRecent');
+    const top3 = items.slice(0, 3);
+    if (!top3.length) {
+      wrap.innerHTML = '<p class="empty-hint">暂无剪藏，去「生成摘要」保存第一篇吧</p>';
+      return;
+    }
+    wrap.innerHTML = top3
+      .map((it, i) => {
+        const meta = [
+          it.platform && escapeHtml(it.platform),
+          it.author && escapeHtml(it.author),
+          fmtDate(it.savedAt) && ('收藏于 ' + fmtDate(it.savedAt))
+        ].filter(Boolean).join(' · ');
+        const num = String(i + 1).padStart(2, '0');
+        return '<div class="clip-item" data-id="' + it.id + '">' +
+          '<span class="clip-rank">' + num + '</span>' +
+          '<div class="clip-main">' +
+          '<div class="clip-title">' + escapeHtml(it.title) + '</div>' +
+          '<div class="clip-meta">' + meta + '</div>' +
+          (it.oneliner ? '<div class="clip-oneliner">' + escapeHtml(it.oneliner) + '</div>' : '') +
+          '</div></div>';
+      })
+      .join('');
+    wrap.querySelectorAll('.clip-item').forEach((el) => {
+      el.addEventListener('click', () => openDetail(Number(el.dataset.id)));
+    });
+  }
+
+  // GitHub 风格贡献热力图（近 365 天，CSS Grid 7×N，无库）
+  function renderHeatmap(trend) {
+    const map = {};
+    trend.forEach((d) => { map[d.date] = d; });
+    const maxCount = Math.max(1, ...trend.map((d) => d.count || 0));
+
+    const today = new Date();
+    const todayUTC = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    // 起点：today-364 天所在周的周日（GitHub 惯例 Sun-start）
+    let start = new Date(todayUTC - 364 * 86400000);
+    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+
+    const todayKey = new Date(todayUTC).toISOString().slice(0, 10);
+    const cells = [];
+    const cursor = new Date(start);
+    const band = Math.max(1, Math.ceil(maxCount / 4));
+    while (cursor.getTime() <= todayUTC) {
+      const key = cursor.toISOString().slice(0, 10);
+      const c = (map[key] && map[key].count) || 0;
+      const level = c === 0 ? 0 : Math.min(4, Math.ceil(c / band));
+      const label = c === 0 ? (key + '：无收藏') : (key + '：' + c + ' 篇');
+      cells.push('<span class="heat-cell heat-L' + level + (key === todayKey ? ' today' : '') + '" title="' + label + '"></span>');
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    $('homeHeatmap').innerHTML = cells.join('');
+  }
+
   // ============ 统计 Tab ============
   async function loadStats() {
     const [{ ok: okStats, d: stats }, { ok: okTrend, d: trend }] = await Promise.all([
@@ -1090,6 +1201,11 @@
       });
     });
 
+    // 首页快捷入口按钮
+    document.querySelectorAll('[data-go]').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.go));
+    });
+
     // 设置页：服务商编辑
     $('addProviderBtn').addEventListener('click', () => openProviderModal(null));
     $('providerModalClose').addEventListener('click', closeProviderModal);
@@ -1102,4 +1218,5 @@
   initTabs();
   initEvents();
   loadConfig();
+  loadHome();
 })();

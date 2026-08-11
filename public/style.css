@@ -911,3 +911,37 @@ body {
   color: var(--ink-4);
   pointer-events: none;
 }
+
+/* ================================================== */
+/* ===== 首页：贡献热力图 =====                        */
+/* ================================================== */
+.heatmap-wrap {
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.heatmap {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  grid-auto-flow: column;
+  grid-auto-columns: 11px;
+  gap: 2px;
+  width: max-content;
+}
+.heat-cell { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+/* 5 级森林绿色阶：L0 空用 rule-light，L1–L4 用 forest 透明度递进 */
+.heat-L0 { background: var(--rule-light); }
+.heat-L1 { background: rgba(45, 90, 61, 0.25); }
+.heat-L2 { background: rgba(45, 90, 61, 0.50); }
+.heat-L3 { background: rgba(45, 90, 61, 0.75); }
+.heat-L4 { background: var(--forest); }
+.heat-cell.today { box-shadow: 0 0 0 1.5px var(--rule-heavy); }
+.heatmap-legend {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 10px; font-size: 11px; color: var(--ink-4);
+}
+.heatmap-legend .heat-cell { width: 11px; height: 11px; }
+
+/* ===== 首页：快捷入口 ===== */
+.home-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.home-actions .btn-secondary { flex: 1; min-width: 92px; text-align: center; }
