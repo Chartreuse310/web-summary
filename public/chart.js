@@ -1,5 +1,5 @@
 /**
- * 轻量折线图（原生 Canvas，零依赖）
+ * 轻量柱状图（原生 Canvas，零依赖）
  *
  * 用法：
  *   const chart = new TrendChart(canvasEl);
@@ -94,54 +94,32 @@ class TrendChart {
       ctx.fillText(label, x, H - pad.b + 8);
     }
 
-    // ---- 折线 ----
-    if (series.length === 1) {
-      // 单点画成圆点
-      const x = pad.l + plotW / 2;
-      const y = pad.t + plotH - (values[0] / maxV) * plotH;
+    // ---- 柱状图 ----
+    const barW = series.length > 1 ? Math.max(1, plotW / series.length - 1) : Math.min(plotW * 0.4, 24);
+    series.forEach((p, i) => {
+      const x = pad.l + (series.length === 1 ? plotW / 2 - barW / 2 : (plotW * i) / series.length + (plotW / series.length - barW) / 2);
+      const h = (p.value / maxV) * plotH;
+      const y = pad.t + plotH - h;
+      // 柱体
       ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fill();
-      return;
+      ctx.fillRect(x, y, barW, h);
+    });
+
+    // 柱顶数值（仅当柱足够宽时显示，避免拥挤）
+    if (barW >= 14) {
+      ctx.fillStyle = this._hexA(color, 0.9);
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      const labelStep = Math.ceil(series.length / Math.min(12, series.length));
+      series.forEach((p, i) => {
+        if (i % labelStep !== 0 && i !== series.length - 1) return;
+        if (p.value === 0) return;
+        const x = pad.l + (plotW * i) / series.length + plotW / series.length / 2;
+        const y = pad.t + plotH - (p.value / maxV) * plotH - 2;
+        ctx.fillText(this._formatVal(p.value, metric), x, y);
+      });
     }
-
-    const xy = series.map((p, i) => {
-      const x = pad.l + (plotW * i) / (series.length - 1);
-      const y = pad.t + plotH - (p.value / maxV) * plotH;
-      return [x, y];
-    });
-
-    // 填充渐变
-    const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + plotH);
-    grad.addColorStop(0, this._hexA(color, 0.25));
-    grad.addColorStop(1, this._hexA(color, 0));
-    ctx.beginPath();
-    ctx.moveTo(xy[0][0], pad.t + plotH);
-    xy.forEach(([x, y]) => ctx.lineTo(x, y));
-    ctx.lineTo(xy[xy.length - 1][0], pad.t + plotH);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // 线
-    ctx.beginPath();
-    xy.forEach(([x, y], i) => {
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-
-    // 点
-    ctx.fillStyle = color;
-    xy.forEach(([x, y]) => {
-      ctx.beginPath();
-      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    });
   }
 
   /**
