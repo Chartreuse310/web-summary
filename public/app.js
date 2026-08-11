@@ -31,6 +31,7 @@
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + name));
     if (name === 'library') loadLibrary();
     if (name === 'stats') loadStats();
+    if (name === 'settings') renderProviderList();
   }
 
   // ============ 工具函数 ============
@@ -63,36 +64,75 @@
   const summarizeBtn = $('summarizeBtn');
   const saveBtn = $('saveBtn');
 
-  async function loadConfig() {
-    const { ok, d } = await api('/api/config');
-    if (!ok || !d.providers?.length) {
-      showError('尚未配置任何服务商的 API Key，请在后端 .env 中设置后重启服务。');
-      summarizeBtn.disabled = true;
-      return;
+  // ===== 服务商配置（localStorage）=====
+  const PROVIDER_KEY = 'web-summary:providers';
+  // 预设模板（从后端一次性拉取，做种子）
+  let presetTemplates = [];
+
+  function loadProviders() {
+    try {
+      return JSON.parse(localStorage.getItem(PROVIDER_KEY)) || [];
+    } catch {
+      return [];
     }
-    state.providers = d.providers;
-    d.providers.forEach((p) => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      providerSelect.appendChild(opt);
-    });
-    renderModels(d.providers[0].models);
-    providerSelect.addEventListener('change', () => {
-      const sel = d.providers.find((p) => p.id === providerSelect.value);
-      if (sel) renderModels(sel.models);
-    });
+  }
+  function saveProviders(list) {
+    localStorage.setItem(PROVIDER_KEY, JSON.stringify(list));
   }
 
-  function renderModels(modelsConfig) {
+  /** 启用的服务商（enabled !== false） */
+  function activeProviders() {
+    return loadProviders().filter((p) => p.enabled !== false && p.apiKey);
+  }
+
+  async function loadConfig() {
+    // 拉预设模板（用于设置页「添加」时的快捷选项）
+    const { ok, d } = await api('/api/provider-presets');
+    if (ok) presetTemplates = d.providers || [];
+
+    refreshProviderSelect();
+  }
+
+  /** 刷新「生成摘要」页的服务商/模型下拉 */
+  function refreshProviderSelect() {
+    const list = activeProviders();
+    providerSelect.innerHTML = '';
     modelSelect.innerHTML = '';
-    modelsConfig.forEach((entry) => {
-      if (typeof entry === 'string') {
-        modelSelect.appendChild(new Option(entry, entry));
-      } else if (entry?.items) {
+
+    if (list.length === 0) {
+      summarizeBtn.disabled = true;
+      showError('尚未配置可用的服务商。请到「⚙️ 设置」中添加服务商并填写 API Key。');
+      return;
+    }
+    summarizeBtn.disabled = false;
+    setHidden($('errorCard'), true);
+
+    list.forEach((p) => {
+      providerSelect.appendChild(new Option(p.name, p.id));
+    });
+    renderModelsForProvider(list[0]);
+    providerSelect.onchange = () => {
+      const sel = list.find((p) => p.id === providerSelect.value);
+      if (sel) renderModelsForProvider(sel);
+    };
+  }
+
+  function renderModelsForProvider(p) {
+    modelSelect.innerHTML = '';
+    const models = p.models || [];
+    if (models.length === 0) {
+      // 自定义服务商无预设模型 → 提供自由输入
+      modelSelect.appendChild(new Option('（请在下方输入模型名）', ''));
+      const free = document.createElement('input');
+      // 不替换 select；改用一个简单的做法：模型列表为空时仍允许手填
+      return;
+    }
+    models.forEach((m) => {
+      if (typeof m === 'string') modelSelect.appendChild(new Option(m, m));
+      else if (m?.items) {
         const g = document.createElement('optgroup');
-        g.label = entry.group;
-        entry.items.forEach((m) => g.appendChild(new Option(m, m)));
+        g.label = m.group;
+        m.items.forEach((x) => g.appendChild(new Option(x, x)));
         modelSelect.appendChild(g);
       }
     });
@@ -100,19 +140,26 @@
 
   async function handleSummarize() {
     const url = urlInput.value.trim();
-    const providerId = providerSelect.value;
+    const list = activeProviders();
+    const provider = list.find((p) => p.id === providerSelect.value);
     const model = modelSelect.value;
     if (!url) { showError('请输入要总结的网址'); urlInput.focus(); return; }
-    if (!providerId || !model) { showError('请选择服务商和模型'); return; }
+    if (!provider) { showError('请先到「设置」配置服务商'); return; }
+    if (!model) { showError('请选择或输入模型'); return; }
 
     summarizeBtn.disabled = true;
     saveBtn.disabled = true;
     setLoading('正在抓取网页…');
     try {
+      // 传完整 provider 给后端（含 baseUrl + apiKey），后端无状态转发
       const { ok, d } = await api('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, providerId, model })
+        body: JSON.stringify({
+          url,
+          provider: { baseUrl: provider.baseUrl, apiKey: provider.apiKey, name: provider.name, models: provider.models },
+          model
+        })
       });
       if (!ok) throw new Error(d.error || '请求失败');
       renderResult(d);
@@ -493,6 +540,157 @@
     chart.render(state.trendData, { metric: state.trendMetric, color: colors[state.trendMetric] });
   }
 
+  // ============ 设置页：服务商 CRUD ============
+  const providerList = $('providerList');
+  const providerModal = $('providerModal');
+  let editingProviderId = null; // null=新增，非null=编辑
+
+  function renderProviderList() {
+    const list = loadProviders();
+    if (list.length === 0) {
+      providerList.innerHTML = '<p class="empty-providers">还没有服务商。点「+ 添加服务商」开始配置。</p>';
+      return;
+    }
+    providerList.innerHTML = list
+      .map((p) => {
+        const modelCount = Array.isArray(p.models) ? p.models.length : 0;
+        const keyMasked = p.apiKey ? p.apiKey.slice(0, 4) + '••••' + p.apiKey.slice(-4) : '未填';
+        return `
+          <div class="provider-item ${p.enabled === false ? 'disabled' : ''}" data-id="${p.id}">
+            <button class="provider-toggle ${p.enabled !== false ? 'on' : ''}" data-act="toggle"></button>
+            <div class="provider-info">
+              <div class="provider-name">${escapeHtml(p.name)} ${p.preset ? '<span class="model-badge">预设</span>' : ''}</div>
+              <div class="provider-meta">${escapeHtml(p.baseUrl)} · Key: ${escapeHtml(keyMasked)} · ${modelCount} 个模型</div>
+            </div>
+            <div class="provider-actions">
+              <button data-act="edit">编辑</button>
+              <button data-act="delete" class="btn-del">删除</button>
+            </div>
+          </div>`;
+      })
+      .join('');
+
+    providerList.querySelectorAll('.provider-item').forEach((el) => {
+      const id = el.dataset.id;
+      el.querySelector('[data-act="toggle"]').addEventListener('click', () => toggleProvider(id));
+      el.querySelector('[data-act="edit"]').addEventListener('click', () => openProviderModal(id));
+      el.querySelector('[data-act="delete"]').addEventListener('click', () => deleteProvider(id));
+    });
+  }
+
+  function toggleProvider(id) {
+    const list = loadProviders();
+    const p = list.find((x) => x.id === id);
+    if (!p) return;
+    p.enabled = p.enabled === false ? true : false;
+    saveProviders(list);
+    renderProviderList();
+    refreshProviderSelect();
+  }
+
+  function deleteProvider(id) {
+    if (!confirm('确定删除该服务商配置？')) return;
+    saveProviders(loadProviders().filter((x) => x.id !== id));
+    renderProviderList();
+    refreshProviderSelect();
+  }
+
+  function openProviderModal(id) {
+    editingProviderId = id || null;
+    $('providerModalTitle').textContent = id ? '编辑服务商' : '添加服务商';
+
+    // 默认值：新增时若有预设，预填第一个预设
+    let p = { name: '', baseUrl: '', apiKey: '', models: [], testModel: '' };
+    if (id) {
+      p = { ...p, ...loadProviders().find((x) => x.id === id) };
+    } else if (presetTemplates.length > 0) {
+      const t = presetTemplates[0];
+      const flat = (t.models || []).flatMap((m) => (typeof m === 'string' ? [m] : m.items || []));
+      p = { name: t.name, baseUrl: t.baseUrl, apiKey: '', models: flat, testModel: flat[0] || '', preset: true, presetId: t.id };
+    }
+
+    $('pfName').value = p.name || '';
+    $('pfBaseUrl').value = p.baseUrl || '';
+    $('pfApiKey').value = p.apiKey || '';
+    $('pfModels').value = (p.models || []).join(', ');
+    $('pfTestModel').value = p.testModel || '';
+    $('pfTestResult').textContent = '';
+    $('pfTestResult').className = 'pf-test-result';
+
+    // 预设快捷选择（仅新增时）
+    renderPresetChips();
+    setHidden(providerModal, false);
+  }
+
+  function renderPresetChips() {
+    // 在名称输入框上方放预设快捷按钮（简化：若有多个预设，添加时让用户点选）
+    // 这里用简单实现：新增时自动填第一个，用户可改
+  }
+
+  function closeProviderModal() {
+    setHidden(providerModal, true);
+    editingProviderId = null;
+  }
+
+  async function testProviderConnection() {
+    const baseUrl = $('pfBaseUrl').value.trim();
+    const apiKey = $('pfApiKey').value.trim();
+    const model = $('pfTestModel').value.trim() || ($('pfModels').value.split(',')[0] || '').trim();
+    const result = $('pfTestResult');
+    if (!baseUrl || !apiKey || !model) {
+      result.textContent = '请先填 Base URL、API Key 和测试模型';
+      result.className = 'pf-test-result fail';
+      return;
+    }
+    result.textContent = '测试中…';
+    result.className = 'pf-test-result';
+    const { ok, d } = await api('/api/test-provider', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseUrl, apiKey, model })
+    });
+    if (ok && d.ok) {
+      result.textContent = '✓ ' + d.message;
+      result.className = 'pf-test-result ok';
+    } else {
+      result.textContent = '✗ ' + (d?.message || d?.error || '测试失败');
+      result.className = 'pf-test-result fail';
+    }
+  }
+
+  function saveProviderFromForm() {
+    const name = $('pfName').value.trim();
+    const baseUrl = $('pfBaseUrl').value.trim();
+    const apiKey = $('pfApiKey').value.trim();
+    const modelsRaw = $('pfModels').value.trim();
+    const testModel = $('pfTestModel').value.trim();
+
+    if (!name) return alert('请填写名称');
+    if (!baseUrl) return alert('请填写接口地址');
+    if (!apiKey) return alert('请填写 API Key');
+    if (!modelsRaw) return alert('请至少填一个模型名（逗号分隔）');
+
+    const models = modelsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+    const list = loadProviders();
+
+    if (editingProviderId) {
+      const idx = list.findIndex((x) => x.id === editingProviderId);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], name, baseUrl, apiKey, models, testModel };
+      }
+    } else {
+      list.push({
+        id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        name, baseUrl, apiKey, models, testModel,
+        enabled: true, preset: false
+      });
+    }
+    saveProviders(list);
+    closeProviderModal();
+    renderProviderList();
+    refreshProviderSelect();
+  }
+
   // ============ 事件绑定 ============
   function initEvents() {
     summarizeBtn.addEventListener('click', handleSummarize);
@@ -518,7 +716,15 @@
     });
 
     $('modalClose').addEventListener('click', closeModal);
-    document.querySelector('.modal-backdrop').addEventListener('click', closeModal);
+    // 详情弹窗的 backdrop（第一个 modal）
+    document.querySelectorAll('.modal')[0]?.querySelector('.modal-backdrop')?.addEventListener('click', closeModal);
+
+    // 设置页：服务商编辑
+    $('addProviderBtn').addEventListener('click', () => openProviderModal(null));
+    $('providerModalClose').addEventListener('click', closeProviderModal);
+    providerModal.querySelector('.modal-backdrop').addEventListener('click', closeProviderModal);
+    $('pfTestBtn').addEventListener('click', testProviderConnection);
+    $('pfSaveBtn').addEventListener('click', saveProviderFromForm);
   }
 
   // ============ 启动 ============

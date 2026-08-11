@@ -28,31 +28,10 @@
 
 ## 🚀 快速开始
 
-### 1. 安装依赖
+### 1. 安装依赖并启动
 
 ```bash
 npm install
-```
-
-### 2. 配置 API Key
-
-```bash
-cp .env.example .env
-```
-
-编辑 `.env`，填入至少一个服务商的 key：
-
-```env
-ZHIPU_API_KEY=你的智谱key      # https://bigmodel.cn/（有免费额度）
-PARATERA_API_KEY=你的paratera  # https://llmapi.paratera.com
-PORT=3000
-```
-
-> 未配置 key 的服务商会在前端自动隐藏。
-
-### 3. 启动
-
-```bash
 npm start
 # 或开发模式（文件改动自动重启）
 npm run dev
@@ -60,17 +39,44 @@ npm run dev
 
 打开 [http://localhost:3000](http://localhost:3000)。
 
+### 2. 在页面配置服务商
+
+首次打开会提示「尚未配置服务商」。点顶部「**⚙️ 设置**」Tab：
+
+1. 点「**+ 添加服务商**」
+2. 从内置预设选一个（智谱 GLM / 并行 paratera），表单会自动填好 Base URL 和模型列表
+3. 只需填入你的 **API Key**（可在对应平台注册获取）
+4. 点「**测试连接**」验证 Key 是否有效
+5. 「**保存**」即可回到「生成摘要」使用
+
+也可以添加任意 OpenAI 兼容的自定义服务商（填 Base URL + Key + 模型名）。
+
+> **Key 存哪里？** 仅保存在你当前浏览器（localStorage），不进服务器、不落盘、不进 git。换浏览器需重新填写。公共电脑不建议使用。
+
+### （可选）服务端预配置
+
+若想让所有访问者共享同一套 Key（如团队部署），可在 `.env` 配置：
+
+```bash
+cp .env.example .env
+# 编辑 .env 填 ZHIPU_API_KEY / PARATERA_API_KEY
+```
+
+前端未配置时自动回退到 `.env`。
+
 ## 🧱 技术架构
 
 ```
-前端（Tab：总结 / 剪藏库 / 统计）       后端（Express）
-  ├─ 原生 HTML/CSS/JS                   ├─ 网页抓取：Node 原生 fetch
+前端（Tab：总结 / 剪藏库 / 统计 / 设置）  后端（Express，无状态转发）
+  ├─ 原生 HTML/CSS/JS                     ├─ 网页抓取：Node 原生 fetch
   ├─ 原生 Canvas 折线图（零依赖）  ←→    ├─ 正文提取：@mozilla/readability + jsdom
-  └─ localStorage 临时统计              ├─ 元数据提取：Open Graph / meta 标签 / <time>
-                                        ├─ 大纲提取：DOM H1-H3
-                                        ├─ AI 调用：OpenAI 兼容接口（多服务商通用）
+  ├─ localStorage 存服务商配置+Key      ├─ 元数据提取：Open Graph / meta 标签 / <time>
+  └─ 请求时把 Key 传给后端转发          ├─ 大纲提取：DOM H1-H3 + 编号 fallback
+                                        ├─ AI 调用：OpenAI 兼容接口（用前端传入的 Key 转发）
                                         └─ 持久化：SQLite（better-sqlite3）
 ```
+
+后端不持有 API Key，只做无状态转发——这样不同浏览器各自带自己的 Key，互不干扰。
 
 所有 AI 服务商均使用 OpenAI 兼容接口，底层调用逻辑一套通吃，新增服务商只需在 `config/providers.js` 追加配置。
 

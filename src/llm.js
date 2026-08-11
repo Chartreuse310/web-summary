@@ -43,31 +43,76 @@ const SYSTEM_PROMPT =
   '5. 只输出 JSON，不要包裹 markdown 代码块，不要任何解释。';
 
 /**
- * 根据服务商 id 取其配置（含 apiKey）
+ * 把服务商的 models 配置（可能含分组）扁平化为模型 id 数组
+ * @param {Array} modelsConfig providers[i].models
+ * @returns {string[]} 模型 id 列表
  */
-function getProvider(providerId) {
-  const p = providers.find((x) => x.id === providerId);
-  if (!p) {
-    throw new Error(`未找到服务商：${providerId}`);
+function flattenModels(modelsConfig) {
+  const out = [];
+  for (const entry of modelsConfig) {
+    if (typeof entry === 'string') {
+      out.push(entry);
+    } else if (entry && Array.isArray(entry.items)) {
+      out.push(...entry.items);
+    }
   }
-  const apiKey = process.env[p.apiKeyEnv];
-  if (!apiKey) {
-    throw new Error(`服务商「${p.name}」未配置 API Key（请在 .env 中设置 ${p.apiKeyEnv}）`);
+  return out;
+}
+
+/**
+ * 解析服务商来源：
+ *   - 优先用前端传入的 provider 对象（{baseUrl, apiKey, model, name?, models?}）
+ *   - 兜底用 providerId 查 .env（兼容老用法）
+ * 返回标准化的 {baseUrl, apiKey, model, name, models}
+ */
+function resolveProvider({ provider, providerId, model }) {
+  // 优先：前端传入的完整 provider 配置（无状态转发模式）
+  if (provider && provider.baseUrl && provider.apiKey) {
+    return {
+      baseUrl: provider.baseUrl.replace(/\/$/, ''),
+      apiKey: provider.apiKey,
+      model,
+      name: provider.name || '自定义服务商',
+      models: provider.models // 可能 undefined（自定义服务商不强校验模型列表）
+    };
   }
-  return { ...p, apiKey };
+
+  // 兜底：按 providerId 查 .env（老用法 / 服务端预配置）
+  if (providerId) {
+    const p = providers.find((x) => x.id === providerId);
+    if (!p) {
+      throw new Error(`未找到服务商：${providerId}`);
+    }
+    const apiKey = process.env[p.apiKeyEnv];
+    if (!apiKey) {
+      throw new Error(
+        `服务商「${p.name}」未配置 API Key。请在「设置」中填写，或在后端 .env 设置 ${p.apiKeyEnv}`
+      );
+    }
+    return { ...p, apiKey, model };
+  }
+
+  throw new Error('缺少服务商配置（provider 或 providerId）');
 }
 
 /**
  * 调用 LLM 生成摘要
- * @param {{providerId: string, model: string, text: string, title: string}} opts
- * @returns {Promise<{content: string, usage: object, model: string}>}
+ * @param {object} opts
+ *   - provider: {baseUrl, apiKey, name?, models?} 前端传入的无状态配置（优先）
+ *   - providerId: string 兜底，查 .env 的服务商 id
+ *   - model, text, title
+ * @returns {Promise<{oneliner, summary, tags, usage, model}>}
  */
-async function summarize({ providerId, model, text, title }) {
-  const provider = getProvider(providerId);
+async function summarize(opts) {
+  const { provider: providerArg, providerId, model, text, title } = opts;
+  const provider = resolveProvider({ provider: providerArg, providerId, model });
 
-  const allModels = flattenModels(provider.models);
-  if (!allModels.includes(model)) {
-    throw new Error(`服务商「${provider.name}」不支持模型：${model}`);
+  // 模型校验：仅当服务商有明确模型列表时才校验（自定义服务商放行，信任用户输入）
+  if (provider.models) {
+    const allModels = flattenModels(provider.models);
+    if (allModels.length > 0 && !allModels.includes(model)) {
+      throw new Error(`服务商「${provider.name}」不支持模型：${model}`);
+    }
   }
 
   const messages = [
@@ -170,4 +215,4 @@ function parseSummaryJson(raw) {
   }
 }
 
-module.exports = { summarize, getProvider };
+module.exports = { summarize, resolveProvider, flattenModels };

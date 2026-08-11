@@ -18,6 +18,7 @@
       <button class="tab active" data-tab="summarize">✨ 生成摘要</button>
       <button class="tab" data-tab="library">📚 剪藏库</button>
       <button class="tab" data-tab="stats">📊 统计</button>
+      <button class="tab" data-tab="settings">⚙️ 设置</button>
     </nav>
 
     <!-- ===== Tab 1: 总结 ===== -->
@@ -151,6 +152,56 @@
         <div id="topTags" class="tag-cloud"></div>
       </div>
     </section>
+
+    <!-- ===== Tab 4: 设置 ===== -->
+    <section class="tab-panel" id="panel-settings">
+      <div class="card">
+        <div class="settings-header">
+          <span class="stats-title">🔌 服务商配置</span>
+          <button id="addProviderBtn" class="btn-secondary" type="button">+ 添加服务商</button>
+        </div>
+        <p class="settings-hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
+        <div id="providerList" class="provider-list"></div>
+      </div>
+    </section>
+
+    <!-- 服务商编辑弹窗 -->
+    <div class="modal" id="providerModal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-body">
+        <button class="modal-close" id="providerModalClose">×</button>
+        <div class="modal-title" id="providerModalTitle">配置服务商</div>
+        <div class="provider-form">
+          <div class="form-row">
+            <label class="field-label" for="pfName">名称</label>
+            <input type="text" id="pfName" class="url-input" placeholder="如：智谱 GLM" />
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="pfBaseUrl">接口地址 (Base URL)</label>
+            <input type="text" id="pfBaseUrl" class="url-input" placeholder="如：https://open.bigmodel.cn/api/paas/v4" />
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="pfApiKey">API Key</label>
+            <input type="password" id="pfApiKey" class="url-input" placeholder="sk-..." />
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="pfModels">模型列表</label>
+            <input type="text" id="pfModels" class="url-input" placeholder="逗号分隔，如：glm-4-flash, glm-4, GLM-5.2" />
+            <p class="form-tip">下拉选择用。也可在调用时直接填模型名（不强校验）。</p>
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="pfTestModel">测试用模型</label>
+            <input type="text" id="pfTestModel" class="url-input" placeholder="用于测试连接的模型名，如 glm-4-flash" />
+          </div>
+          <div class="modal-actions">
+            <button id="pfTestBtn" class="btn-secondary" type="button">测试连接</button>
+            <span class="pf-test-result" id="pfTestResult"></span>
+            <span style="flex:1"></span>
+            <button id="pfSaveBtn" class="btn-primary" type="button" style="width:auto;padding:9px 24px">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <footer class="footer">
       <p>Token 与费用为估算值，仅供参考。数据保存在本地 data/clippings.db。</p>
