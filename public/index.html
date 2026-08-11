@@ -28,7 +28,7 @@
 
     <!-- ===== Tab 0: 首页 ===== -->
     <section class="tab-panel active" id="panel-home">
-      <!-- 顶部行：三计数 + 热力图 + 一句话总结 -->
+      <!-- 顶部行：三计数 + （一句话总结叠贡献热力图）-->
       <div class="home-top-grid">
         <div class="home-stats-col">
           <div class="home-stat card stat-big">
@@ -45,7 +45,10 @@
           </div>
         </div>
 
-        <div class="card home-heatmap-col">
+        <div class="home-chart-col">
+          <!-- 一句话总结（无标题，置于热力图上方）-->
+          <div class="oneliner-box" id="homeOneliner">加载中…</div>
+          <!-- 贡献热力图（无外框/背景，悬停显示条目数据）-->
           <div class="section-label">贡献热力图</div>
           <div class="heatmap-wrap" id="homeHeatmapWrap">
             <div class="heatmap" id="homeHeatmap"></div>
@@ -60,11 +63,6 @@
             <span>多</span>
           </div>
         </div>
-
-        <div class="home-oneliner-col">
-          <div class="section-label">近期在看</div>
-          <div class="oneliner-box" id="homeOneliner">加载中…</div>
-        </div>
       </div>
 
       <!-- 下方：最近剪藏 + 标签云 -->
@@ -75,7 +73,7 @@
             <p class="empty-hint">暂无剪藏</p>
           </div>
         </div>
-        <div class="card home-tagcloud-col">
+        <div class="home-tagcloud-col">
           <div class="section-label">标签云</div>
           <div id="homeTagCloud" class="tag-cloud-freq"></div>
         </div>

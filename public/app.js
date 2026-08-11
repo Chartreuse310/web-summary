@@ -1101,11 +1101,41 @@
       const key = cursor.toISOString().slice(0, 10);
       const c = (map[key] && map[key].count) || 0;
       const level = c === 0 ? 0 : Math.min(4, Math.ceil(c / band));
-      const label = c === 0 ? (key + '：无收藏') : (key + '：' + c + ' 篇');
-      cells.push('<span class="heat-cell heat-L' + level + (key === todayKey ? ' today' : '') + '" title="' + label + '"></span>');
+      cells.push('<span class="heat-cell heat-L' + level + (key === todayKey ? ' today' : '') + '" data-date="' + key + '" data-count="' + c + '"></span>');
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
     $('homeHeatmap').innerHTML = cells.join('');
+    bindHeatTooltip();
+  }
+
+  // 热力图自定义悬停提示（跟随鼠标，显示日期与篇数）
+  let heatTooltip = null;
+  let heatTooltipBound = false;
+  function bindHeatTooltip() {
+    const grid = $('homeHeatmap');
+    if (heatTooltipBound) return;
+    heatTooltipBound = true;
+    if (!heatTooltip) {
+      heatTooltip = document.createElement('div');
+      heatTooltip.className = 'heat-tooltip';
+      document.body.appendChild(heatTooltip);
+    }
+    grid.addEventListener('mouseover', (e) => {
+      const cell = e.target.closest('.heat-cell');
+      if (!cell) return;
+      const date = cell.dataset.date;
+      const count = Number(cell.dataset.count);
+      heatTooltip.textContent = count === 0 ? (date + '：无收藏') : (date + '：' + count + ' 篇');
+      heatTooltip.classList.add('show');
+    });
+    grid.addEventListener('mousemove', (e) => {
+      if (!heatTooltip.classList.contains('show')) return;
+      heatTooltip.style.left = (e.clientX + 14) + 'px';
+      heatTooltip.style.top = (e.clientY + 14) + 'px';
+    });
+    grid.addEventListener('mouseleave', () => {
+      heatTooltip.classList.remove('show');
+    });
   }
 
   // ============ 统计 Tab ============
