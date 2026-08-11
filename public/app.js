@@ -10,13 +10,20 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const api = (p, opt) => fetch(p, opt).then((r) => r.json().then((d) => ({ ok: r.ok, d })));
+  const t = (k, p) => I18n.t(k, p);
+  // 所有后端请求附带 X-Lang，让错误信息按当前界面语言返回
+  const api = (p, opt) => {
+    opt = opt || {};
+    opt.headers = Object.assign({}, opt.headers, { 'X-Lang': I18n.getLang() });
+    return fetch(p, opt).then((r) => r.json().then((d) => ({ ok: r.ok, d })));
+  };
 
-  // 把任意形态的 author 归一化成「顿号分隔的字符串」用于展示。
+  // 把任意形态的 author 归一化成「按当前语言分隔符串联的字符串」用于展示。
   // 后端按约定返回数组，但若遇到旧数据/异常写入返回裸字符串，这里兜底防止 .join 抛错崩整页。
   const fmtAuthors = (a) => {
+    const sep = t('authors.sep');
     if (Array.isArray(a)) {
-      return a.map((x) => (x == null ? '' : String(x))).filter(Boolean).join('、');
+      return a.map((x) => (x == null ? '' : String(x))).filter(Boolean).join(sep);
     }
     if (typeof a === 'string') return a.trim();
     return '';
@@ -50,7 +57,7 @@
 
   // ============ 工具函数 ============
   function fmtCost(yuan) {
-    if (yuan == null) return '未知';
+    if (yuan == null) return t('fmtCost.unknown');
     if (yuan === 0) return '¥0';
     return '¥' + (yuan < 0.01 ? yuan.toFixed(6) : yuan.toFixed(4));
   }
@@ -115,7 +122,7 @@
 
     if (list.length === 0) {
       summarizeBtn.disabled = true;
-      showError('尚未配置可用的服务商。请到「设置」中添加服务商并填写 API Key。');
+      showError(t('err.noProvider'));
       return;
     }
     summarizeBtn.disabled = false;
@@ -136,7 +143,7 @@
     const models = p.models || [];
     if (models.length === 0) {
       // 自定义服务商无预设模型 → 提供自由输入
-      modelSelect.appendChild(new Option('（请在下方输入模型名）', ''));
+      modelSelect.appendChild(new Option(t('model.freeInput'), ''));
       const free = document.createElement('input');
       // 不替换 select；改用一个简单的做法：模型列表为空时仍允许手填
       return;
@@ -157,25 +164,27 @@
     const list = activeProviders();
     const provider = list.find((p) => p.id === providerSelect.value);
     const model = modelSelect.value;
-    if (!url) { showError('请输入要总结的网址'); urlInput.focus(); return; }
-    if (!provider) { showError('请先到「设置」配置服务商'); return; }
-    if (!model) { showError('请选择或输入模型'); return; }
+    if (!url) { showError(t('err.urlRequired')); urlInput.focus(); return; }
+    if (!provider) { showError(t('err.providerRequired')); return; }
+    if (!model) { showError(t('err.modelRequired')); return; }
 
     summarizeBtn.disabled = true;
     saveBtn.disabled = true;
-    setLoading('正在抓取网页…');
+    setLoading(t('loading.fetching'));
     try {
       // 传完整 provider 给后端（含 baseUrl + apiKey），后端无状态转发
+      // lang 让后端按当前语言生成 AI 摘要
       const { ok, d } = await api('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url,
           provider: { baseUrl: provider.baseUrl, apiKey: provider.apiKey, name: provider.name, models: provider.models },
-          model
+          model,
+          lang: I18n.getLang()
         })
       });
-      if (!ok) throw new Error(d.error || '请求失败');
+      if (!ok) throw new Error(d.error || t('err.requestFailed'));
       renderResult(d);
     } catch (err) {
       showError(err.message);
@@ -192,10 +201,10 @@
     // 元数据
     const metaParts = [];
     const authorText = fmtAuthors(d.author);
-    if (authorText) metaParts.push(`作者：${authorText}`);
-    if (d.platform) metaParts.push(`平台：${d.platform}`);
-    if (d.publishedAt) metaParts.push(`发布：${fmtDate(d.publishedAt)}`);
-    metaParts.push(`模型：${d.model}`);
+    if (authorText) metaParts.push(t('meta.author') + authorText);
+    if (d.platform) metaParts.push(t('meta.platform') + d.platform);
+    if (d.publishedAt) metaParts.push(t('meta.published') + fmtDate(d.publishedAt));
+    metaParts.push(t('meta.model') + d.model);
     $('resultMeta').innerHTML = metaParts.map((s) => `<span>${escapeHtml(s)}</span>`).join('');
 
     // 大纲
@@ -225,9 +234,9 @@
 
     // 用量条
     const u = d.usage;
-    const costText = u?.priced ? fmtCost(u.totalCost) : '价格未知';
+    const costText = u?.priced ? fmtCost(u.totalCost) : t('usage.priceUnknown');
     $('usageBar').innerHTML = u
-      ? `输入 <b>${fmtNum(u.promptTokens)}</b> · 输出 <b>${fmtNum(u.completionTokens)}</b> · 总 <b>${fmtNum(u.totalTokens)}</b> · 费用 <b>${costText}</b>`
+      ? `${t('usage.input')} <b>${fmtNum(u.promptTokens)}</b> · ${t('usage.output')} <b>${fmtNum(u.completionTokens)}</b> · ${t('usage.total')} <b>${fmtNum(u.totalTokens)}</b> · ${t('usage.cost')} <b>${costText}</b>`
       : '';
 
     $('resultLink').href = d.url;
@@ -250,7 +259,7 @@
 
     const input = document.createElement('input');
     input.className = 'tag-input';
-    input.placeholder = '+ 添加标签（回车）';
+    input.placeholder = t('tag.placeholder');
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && input.value.trim()) {
         e.preventDefault();
@@ -279,7 +288,7 @@
     if (!state.currentResult) return;
     const d = state.currentResult;
     saveBtn.disabled = true;
-    saveBtn.textContent = '保存中…';
+    saveBtn.textContent = t('btn.saving');
     try {
       const u = d.usage || {};
       const { ok, d: resp } = await api('/api/clippings', {
@@ -301,13 +310,14 @@
           totalTokens: u.totalTokens,
           cost: u.priced ? u.totalCost : 0,
           contentText: d.contentText,
-          contentHtml: d.contentHtml
+          contentHtml: d.contentHtml,
+          lang: I18n.getLang()
         })
       });
-      if (!ok) throw new Error(resp.error || '保存失败');
-      saveBtn.textContent = '已保存';
+      if (!ok) throw new Error(resp.error || t('err.saveFailed'));
+      saveBtn.textContent = t('btn.saved');
       setTimeout(() => {
-        saveBtn.textContent = '保存到剪藏库';
+        saveBtn.textContent = t('btn.saveToLibrary');
         saveBtn.disabled = false;
         closeSummarizeModal();
         // 刷新首页计数 / 剪藏库（若当前停留）
@@ -316,7 +326,7 @@
       }, 1000);
     } catch (err) {
       alert(err.message);
-      saveBtn.textContent = '保存到剪藏库';
+      saveBtn.textContent = t('btn.saveToLibrary');
       saveBtn.disabled = false;
     }
   }
@@ -341,7 +351,7 @@
     setHidden($('loadingCard'), true);
     setHidden($('errorCard'), true);
     urlInput.value = '';
-    saveBtn.textContent = '保存到剪藏库';
+    saveBtn.textContent = t('btn.saveToLibrary');
     saveBtn.disabled = true;
     refreshProviderSelect();
     setHidden($('summarizeModal'), false);
@@ -371,7 +381,7 @@
       api('/api/stats'),
       api('/api/stats/clusters')
     ]);
-    if (!listRes.ok) { libraryList.innerHTML = '<p class="empty-hint">加载失败</p>'; return; }
+    if (!listRes.ok) { libraryList.innerHTML = '<p class="empty-hint">' + escapeHtml(t('err.loadFailed')) + '</p>'; return; }
     renderLibrary(listRes.d.items);
     refreshTagFilter();
     if (statsRes.ok) renderLibraryRails(statsRes.d);
@@ -380,7 +390,7 @@
 
   function renderLibrary(items) {
     if (!items.length) {
-      libraryList.innerHTML = '<p class="empty-hint">暂无剪藏，去「生成摘要」保存第一篇吧</p>';
+      libraryList.innerHTML = '<p class="empty-hint">' + escapeHtml(t('empty.libraryAlt')) + '</p>';
       return;
     }
     const maxTokens = Math.max(...items.map((it) => it.totalTokens || 0), 1);
@@ -390,11 +400,11 @@
           it.platform && escapeHtml(it.platform),
           escapeHtml(fmtAuthors(it.author)),
           it.publishedAt && fmtDate(it.publishedAt),
-          fmtDate(it.savedAt) && `收藏于 ${fmtDate(it.savedAt)}`
+          fmtDate(it.savedAt) && (t('meta.savedAtPrefix') + fmtDate(it.savedAt))
         ].filter(Boolean).join(' · ');
         const tagsHtml = (it.tags || [])
           .slice(0, 5)
-          .map((t) => `<span class="clip-tag">${escapeHtml(t)}</span>`)
+          .map((tag) => `<span class="clip-tag">${escapeHtml(tag)}</span>`)
           .join('');
         const pct = ((it.totalTokens || 0) / maxTokens) * 100;
         const num = String(i + 1).padStart(2, '0');
@@ -427,7 +437,7 @@
     const { ok, d } = await api('/api/stats');
     if (!ok) return;
     const cur = tagFilter.value;
-    tagFilter.innerHTML = '<option value="">全部标签</option>';
+    tagFilter.innerHTML = '<option value="">' + escapeHtml(t('filter.allTags')) + '</option>';
     (d.topTags || []).forEach(({ tag, count }) => {
       tagFilter.appendChild(new Option(`${tag} (${count})`, tag));
     });
@@ -439,10 +449,10 @@
   function renderTimeClusters(clusters) {
     const wrap = $('timeClusters');
     const groups = [
-      { grp: '按年', title: '按年', items: clusters.byYear, fmt: (k) => k + ' 年' },
-      { grp: '按月', title: '按月', items: clusters.byMonth, fmt: (k) => k },
-      { grp: '按周', title: '按周', items: clusters.byWeek, fmt: (k) => fmtWeekLabel(k) },
-      { grp: '按日', title: '按日', items: clusters.byDay, fmt: (k) => k.slice(5) }
+      { grp: 'byYear', title: t('time.byYear'), items: clusters.byYear, fmt: (k) => k + t('time.yearSuffix') },
+      { grp: 'byMonth', title: t('time.byMonth'), items: clusters.byMonth, fmt: (k) => k },
+      { grp: 'byWeek', title: t('time.byWeek'), items: clusters.byWeek, fmt: (k) => fmtWeekLabel(k) },
+      { grp: 'byDay', title: t('time.byDay'), items: clusters.byDay, fmt: (k) => k.slice(5) }
     ];
     wrap.innerHTML = groups
       .map((g) => {
@@ -475,24 +485,24 @@
 
   function applyTimeFilter(grp, key) {
     let from, to, label;
-    if (grp === '按年') {
+    if (grp === 'byYear') {
       from = key + '-01-01';
       to = (Number(key) + 1) + '-01-01';
-      label = key + ' 年';
-    } else if (grp === '按月') {
+      label = key + t('time.yearSuffix');
+    } else if (grp === 'byMonth') {
       const [y, m] = key.split('-');
       const ny = Number(y), nm = Number(m);
       from = key + '-01';
       const nextM = nm === 12 ? (ny + 1) + '-01' : ny + '-' + pad2(nm + 1);
       to = nextM + '-01';
       label = key;
-    } else if (grp === '按周') {
+    } else if (grp === 'byWeek') {
       from = key;
       const end = new Date(new Date(key + 'T00:00:00').getTime() + 7 * 86400000);
       to = end.toISOString().slice(0, 10);
       label = fmtWeekLabel(key);
     } else {
-      // 按日
+      // byDay
       from = key;
       const end = new Date(new Date(key + 'T00:00:00').getTime() + 86400000);
       to = end.toISOString().slice(0, 10);
@@ -502,7 +512,7 @@
     state.timeFilter = { from, to, label, grp, key };
 
     const badge = $('timeFilterBadge');
-    badge.innerHTML = '时间筛选：' + escapeHtml(label) + ' <span class="clear-time" title="清除筛选">×</span>';
+    badge.innerHTML = t('badge.timeFilter') + escapeHtml(label) + ' <span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
     setHidden(badge, false);
     badge.querySelector('.clear-time').addEventListener('click', clearTimeFilter);
 
@@ -524,13 +534,13 @@
   function renderLibraryRails(stats) {
     const tags = (stats.topTags || []).slice(0, 12);
     $('libTagRank').innerHTML = tags.length
-      ? tags.map((t) => '<div class="rank-row-mini" data-tag="' + escapeHtml(t.tag) + '" title="点击按此标签筛选"><span class="rname">' + escapeHtml(t.tag) + '</span><span class="rcount">' + t.count + '</span></div>').join('')
-      : '<p class="empty-hint">暂无标签</p>';
+      ? tags.map((tag) => '<div class="rank-row-mini" data-tag="' + escapeHtml(tag.tag) + '" title="' + escapeHtml(t('rank.filterByTag')) + '"><span class="rname">' + escapeHtml(tag.tag) + '</span><span class="rcount">' + tag.count + '</span></div>').join('')
+      : '<p class="empty-hint">' + escapeHtml(t('empty.tags')) + '</p>';
 
     const authors = (stats.byAuthor || []).slice(0, 12);
     $('libAuthorRank').innerHTML = authors.length
-      ? authors.map((a) => '<div class="rank-row-mini" data-author="' + escapeHtml(a.author) + '" title="点击搜索该作者"><span class="rname">' + escapeHtml(a.author) + '</span><span class="rcount">' + a.count + '</span></div>').join('')
-      : '<p class="empty-hint">暂无作者</p>';
+      ? authors.map((a) => '<div class="rank-row-mini" data-author="' + escapeHtml(a.author) + '" title="' + escapeHtml(t('rank.searchByAuthor')) + '"><span class="rname">' + escapeHtml(a.author) + '</span><span class="rcount">' + a.count + '</span></div>').join('')
+      : '<p class="empty-hint">' + escapeHtml(t('empty.authors')) + '</p>';
 
     $('libTagRank').querySelectorAll('.rank-row-mini').forEach((el) => {
       el.addEventListener('click', () => {
@@ -550,7 +560,7 @@
 
   async function openDetail(id) {
     const { ok, d } = await api('/api/clippings/' + id);
-    if (!ok) { alert(d.error || '加载失败'); return; }
+    if (!ok) { alert(d.error || t('err.loadFailed')); return; }
 
     state.currentReaderClipping = d;
 
@@ -565,9 +575,9 @@
     const authorText = fmtAuthors(d.author);
     const metaParts = [
       d.platform && escapeHtml(d.platform),
-      authorText && escapeHtml('作者：' + authorText),
-      d.publishedAt && escapeHtml('发布：' + fmtDate(d.publishedAt)),
-      escapeHtml('收藏：' + fmtDate(d.savedAt))
+      authorText && escapeHtml(t('meta.author') + authorText),
+      d.publishedAt && escapeHtml(t('meta.published') + fmtDate(d.publishedAt)),
+      escapeHtml(t('meta.savedAt') + fmtDate(d.savedAt))
     ].filter(Boolean);
     $('readerMeta').innerHTML = metaParts.map((s) => '<span>' + s + '</span>').join('');
 
@@ -597,9 +607,9 @@
     // ---- 右栏：模型与用量 ----
     const costText = d.cost ? fmtCost(d.cost) : '¥0';
     $('readerUsage').innerHTML =
-      '<div>模型：<b>' + escapeHtml(d.model) + '</b></div>' +
-      '<div>输入 <b>' + fmtNum(d.promptTokens) + '</b> · 输出 <b>' + fmtNum(d.completionTokens) + '</b> · 总 <b>' + fmtNum(d.totalTokens) + '</b></div>' +
-      '<div>费用：<b>' + costText + '</b></div>';
+      '<div>' + escapeHtml(t('meta.model')) + '<b>' + escapeHtml(d.model) + '</b></div>' +
+      '<div>' + escapeHtml(t('usage.input')) + ' <b>' + fmtNum(d.promptTokens) + '</b> · ' + escapeHtml(t('usage.output')) + ' <b>' + fmtNum(d.completionTokens) + '</b> · ' + escapeHtml(t('usage.total')) + ' <b>' + fmtNum(d.totalTokens) + '</b></div>' +
+      '<div>' + escapeHtml(t('meta.cost')) + '<b>' + costText + '</b></div>';
 
     // ---- 右栏：原文链接 ----
     $('readerLink').href = d.url;
@@ -625,11 +635,11 @@
       article.innerHTML = d.contentHtml;
     } else if (d.contentText && d.contentText.trim()) {
       article.innerHTML =
-        '<div class="reader-fallback-notice">该剪藏为旧版本保存，未保留全文格式，以下为纯文本内容。</div>' +
+        '<div class="reader-fallback-notice">' + escapeHtml(t('reader.fallbackOld')) + '</div>' +
         '<div class="reader-plaintext">' + escapeHtml(d.contentText) + '</div>';
     } else {
       article.innerHTML =
-        '<div class="reader-fallback-notice">该剪藏未保留全文内容。</div>';
+        '<div class="reader-fallback-notice">' + escapeHtml(t('reader.fallbackNone')) + '</div>';
     }
   }
 
@@ -703,7 +713,7 @@
 
     const input = document.createElement('input');
     input.className = 'tag-input';
-    input.placeholder = '+ 添加（回车）';
+    input.placeholder = t('tag.placeholderShort');
     input.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter' && input.value.trim()) {
         const newTag = input.value.trim();
@@ -773,26 +783,26 @@
       const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim());
       article.innerHTML = paragraphs.length
         ? paragraphs.map((p) => '<p>' + escapeHtml(p.trim()) + '</p>').join('')
-        : '<p>（空内容）</p>';
+        : '<p>' + escapeHtml(t('reader.emptyContent')) + '</p>';
     }
 
     // 启用 contentEditable
     article.contentEditable = 'true';
     article.classList.add('editing');
-    article.setAttribute('data-placeholder', '正文内容为空，点击此处开始编辑');
+    article.setAttribute('data-placeholder', t('reader.placeholderBody'));
 
     // 一句话总结：显示 block（即使为空）+ 可编辑
     setHidden($('readerOnelinerBlock'), false);
     const onelinerEl = $('readerOneliner');
     onelinerEl.contentEditable = 'true';
     onelinerEl.classList.add('editing');
-    onelinerEl.setAttribute('data-placeholder', '点击编辑一句话总结…');
+    onelinerEl.setAttribute('data-placeholder', t('reader.placeholderOneliner'));
 
     // 摘要：可编辑
     const summaryEl = $('readerSummary');
     summaryEl.contentEditable = 'true';
     summaryEl.classList.add('editing');
-    summaryEl.setAttribute('data-placeholder', '点击编辑摘要…');
+    summaryEl.setAttribute('data-placeholder', t('reader.placeholderSummary'));
 
     // 切换按钮
     setHidden($('readerEdit'), true);
@@ -887,7 +897,7 @@
     };
 
     saveBtn.disabled = true;
-    saveBtn.textContent = '保存中…';
+    saveBtn.textContent = t('btn.saving');
 
     try {
       const { ok, d: resp } = await api('/api/clippings/' + d.id, {
@@ -895,7 +905,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!ok) throw new Error(resp.error || '保存失败');
+      if (!ok) throw new Error(resp.error || t('err.saveFailed'));
 
       // 用后端返回值更新 state（含 re-sanitized contentHtml）
       state.currentReaderClipping = resp;
@@ -923,7 +933,7 @@
       alert(err.message);
     } finally {
       saveBtn.disabled = false;
-      saveBtn.textContent = '保存';
+      saveBtn.textContent = t('btn.save');
     }
   }
 
@@ -976,9 +986,9 @@
   async function handleReaderDelete() {
     const id = Number($('readerView').dataset.clippingId);
     if (!id) return;
-    if (!confirm('确定删除这条剪藏？此操作不可撤销。')) return;
+    if (!confirm(t('reader.confirmDelete'))) return;
     const { ok, d } = await api('/api/clippings/' + id, { method: 'DELETE' });
-    if (!ok) { alert(d.error || '删除失败'); return; }
+    if (!ok) { alert(d.error || t('err.deleteFailed')); return; }
     closeReader();
     loadLibrary();
   }
@@ -992,7 +1002,7 @@
         api('/api/clippings?sort=recent&limit=20')
       ]);
     if (!okStats || !okTrend || !okRecent) {
-      $('homeOneliner').textContent = '数据加载失败，请稍后重试。';
+      $('homeOneliner').textContent = t('oneliner.loadFailed');
       return;
     }
     renderHomeStats(stats);
@@ -1012,17 +1022,17 @@
   function renderHomeTagCloud(tags) {
     const wrap = $('homeTagCloud');
     if (!tags || !tags.length) {
-      wrap.innerHTML = '<p class="empty-hint">暂无标签</p>';
+      wrap.innerHTML = '<p class="empty-hint">' + escapeHtml(t('empty.tags')) + '</p>';
       return;
     }
-    const counts = tags.map((t) => t.count);
+    const counts = tags.map((tag) => tag.count);
     const max = Math.max(...counts);
     const min = Math.min(...counts);
     wrap.innerHTML = tags
-      .map((t) => {
-        const ratio = max === min ? 0.5 : (t.count - min) / (max - min);
+      .map((tag) => {
+        const ratio = max === min ? 0.5 : (tag.count - min) / (max - min);
         const size = (12 + ratio * 14).toFixed(1);
-        return '<span class="freq-tag" style="font-size:' + size + 'px" data-tag="' + escapeHtml(t.tag) + '" title="' + t.count + ' 篇">' + escapeHtml(t.tag) + '</span>';
+        return '<span class="freq-tag" style="font-size:' + size + 'px" data-tag="' + escapeHtml(tag.tag) + '" title="' + tag.count + t('dist.articlesSuffix') + '">' + escapeHtml(tag.tag) + '</span>';
       })
       .join('');
     wrap.querySelectorAll('.freq-tag').forEach((el) => {
@@ -1053,13 +1063,13 @@
 
     let text;
     if (n7 === 0) {
-      text = '最近一周还没有新的收藏。去「生成摘要」捕捉下一篇值得留存的内容吧。';
+      text = t('oneliner.noRecent7');
     } else if (topTags.length) {
-      const tagList = topTags.map((t) => '「' + t + '」').join('、');
-      text = '近 7 天收藏了 ' + n7 + ' 篇，主要围绕 ' + tagList + ' 等主题。';
-      if (tok7 > 0) text += '累计消耗约 ' + fmtNum(tok7) + ' tokens。';
+      const tagList = topTags.map((tag) => '「' + tag + '」').join(t('authors.sep'));
+      text = t('oneliner.hasTags', { n: n7, tags: tagList });
+      if (tok7 > 0) text += t('oneliner.hasTagsTok', { tok: fmtNum(tok7) });
     } else {
-      text = '近 7 天收藏了 ' + n7 + ' 篇，尚未添加标签。';
+      text = t('oneliner.noTags', { n: n7 });
     }
     $('homeOneliner').textContent = text;
   }
@@ -1068,7 +1078,7 @@
     const wrap = $('homeRecent');
     const top3 = items.slice(0, 3);
     if (!top3.length) {
-      wrap.innerHTML = '<p class="empty-hint">暂无剪藏，去「生成摘要」保存第一篇吧</p>';
+      wrap.innerHTML = '<p class="empty-hint">' + escapeHtml(t('empty.libraryAlt')) + '</p>';
       return;
     }
     wrap.innerHTML = top3
@@ -1076,7 +1086,7 @@
         const meta = [
           it.platform && escapeHtml(it.platform),
           escapeHtml(fmtAuthors(it.author)),
-          fmtDate(it.savedAt) && ('收藏于 ' + fmtDate(it.savedAt))
+          fmtDate(it.savedAt) && (t('meta.savedAtPrefix') + fmtDate(it.savedAt))
         ].filter(Boolean).join(' · ');
         const num = String(i + 1).padStart(2, '0');
         return '<div class="clip-item" data-id="' + it.id + '">' +
@@ -1137,7 +1147,7 @@
       if (!cell) return;
       const date = cell.dataset.date;
       const count = Number(cell.dataset.count);
-      heatTooltip.textContent = count === 0 ? (date + '：无收藏') : (date + '：' + count + ' 篇');
+      heatTooltip.textContent = count === 0 ? (date + t('heat.none')) : (date + t('heat.some') + count + t('heat.someSuffix'));
       heatTooltip.classList.add('show');
     });
     grid.addEventListener('mousemove', (e) => {
@@ -1175,14 +1185,14 @@
   }
 
   function renderDist(rows, valKey, _countKey) {
-    if (!rows?.length) return '<p class="empty-hint">暂无数据</p>';
+    if (!rows?.length) return '<p class="empty-hint">' + escapeHtml(t('empty.data')) + '</p>';
     const max = Math.max(...rows.map((r) => r[valKey] || 0), 1);
     return rows
       .map((r, i) => {
-        const name = escapeHtml(r.model || r.platform || r.author || '未知');
+        const name = escapeHtml(r.model || r.platform || r.author || t('dist.unknown'));
         const val = r[valKey] || 0;
         const pct = (val / max) * 100;
-        const valText = valKey === 'totalTokens' ? fmtNum(val) + ' tok' : val + ' 篇';
+        const valText = valKey === 'totalTokens' ? fmtNum(val) + t('dist.tokUnit') : (val + t('dist.articlesSuffix'));
         const num = String(i + 1).padStart(2, '0');
         return `<div class="rank-row"><div class="rank-bar" style="width:${pct}%"></div><span class="rank-num">${num}</span><span class="rank-name">${name}</span><span class="rank-count">${valText}</span></div>`;
       })
@@ -1212,23 +1222,23 @@
   function renderProviderList() {
     const list = loadProviders();
     if (list.length === 0) {
-      providerList.innerHTML = '<p class="empty-providers">还没有服务商。点「+ 添加服务商」开始配置。</p>';
+      providerList.innerHTML = '<p class="empty-providers">' + escapeHtml(t('empty.providers')) + '</p>';
       return;
     }
     providerList.innerHTML = list
       .map((p) => {
         const modelCount = Array.isArray(p.models) ? p.models.length : 0;
-        const keyMasked = p.apiKey ? p.apiKey.slice(0, 4) + '••••' + p.apiKey.slice(-4) : '未填';
+        const keyMasked = p.apiKey ? p.apiKey.slice(0, 4) + '••••' + p.apiKey.slice(-4) : t('provider.keyEmpty');
         return `
           <div class="provider-item ${p.enabled === false ? 'disabled' : ''}" data-id="${p.id}">
-            <button class="provider-toggle ${p.enabled !== false ? 'on' : ''}" data-act="toggle"></button>
+            <button class="provider-toggle ${p.enabled !== false ? 'on' : ''}" data-act="toggle" title="${escapeHtml(t('provider.toggleTitle'))}"></button>
             <div class="provider-info">
-              <div class="provider-name">${escapeHtml(p.name)} ${p.preset ? '<span class="model-badge">预设</span>' : ''}</div>
-              <div class="provider-meta">${escapeHtml(p.baseUrl)} · Key: ${escapeHtml(keyMasked)} · ${modelCount} 个模型</div>
+              <div class="provider-name">${escapeHtml(p.name)} ${p.preset ? '<span class="model-badge">' + escapeHtml(t('provider.preset')) + '</span>' : ''}</div>
+              <div class="provider-meta">${escapeHtml(p.baseUrl)} · Key: ${escapeHtml(keyMasked)} · ${modelCount}${escapeHtml(t('provider.modelsSuffix'))}</div>
             </div>
             <div class="provider-actions">
-              <button data-act="edit">编辑</button>
-              <button data-act="delete" class="btn-del">删除</button>
+              <button data-act="edit">${escapeHtml(t('btn.edit'))}</button>
+              <button data-act="delete" class="btn-del">${escapeHtml(t('btn.delete'))}</button>
             </div>
           </div>`;
       })
@@ -1253,7 +1263,7 @@
   }
 
   function deleteProvider(id) {
-    if (!confirm('确定删除该服务商配置？')) return;
+    if (!confirm(t('provider.confirmDelete'))) return;
     saveProviders(loadProviders().filter((x) => x.id !== id));
     renderProviderList();
     refreshProviderSelect();
@@ -1261,7 +1271,7 @@
 
   function openProviderModal(id) {
     editingProviderId = id || null;
-    $('providerModalTitle').textContent = id ? '编辑服务商' : '添加服务商';
+    $('providerModalTitle').textContent = id ? t('modal.editProvider') : t('modal.addProvider');
 
     // 默认值：新增时若有预设，预填第一个预设
     let p = { name: '', baseUrl: '', apiKey: '', models: [], testModel: '' };
@@ -1302,11 +1312,11 @@
     const model = $('pfTestModel').value.trim() || ($('pfModels').value.split(',')[0] || '').trim();
     const result = $('pfTestResult');
     if (!baseUrl || !apiKey || !model) {
-      result.textContent = '请先填 Base URL、API Key 和测试模型';
+      result.textContent = t('test.fillRequired');
       result.className = 'pf-test-result fail';
       return;
     }
-    result.textContent = '测试中…';
+    result.textContent = t('test.testing');
     result.className = 'pf-test-result';
     const { ok, d } = await api('/api/test-provider', {
       method: 'POST',
@@ -1317,7 +1327,7 @@
       result.textContent = d.message;
       result.className = 'pf-test-result ok';
     } else {
-      result.textContent = (d?.message || d?.error || '测试失败');
+      result.textContent = (d?.message || d?.error || t('test.failed'));
       result.className = 'pf-test-result fail';
     }
   }
@@ -1329,10 +1339,10 @@
     const modelsRaw = $('pfModels').value.trim();
     const testModel = $('pfTestModel').value.trim();
 
-    if (!name) return alert('请填写名称');
-    if (!baseUrl) return alert('请填写接口地址');
-    if (!apiKey) return alert('请填写 API Key');
-    if (!modelsRaw) return alert('请至少填一个模型名（逗号分隔）');
+    if (!name) return alert(t('validate.name'));
+    if (!baseUrl) return alert(t('validate.baseUrl'));
+    if (!apiKey) return alert(t('validate.apiKey'));
+    if (!modelsRaw) return alert(t('validate.models'));
 
     const models = modelsRaw.split(',').map((s) => s.trim()).filter(Boolean);
     const list = loadProviders();
@@ -1425,9 +1435,59 @@
     providerModal.querySelector('.modal-backdrop').addEventListener('click', closeProviderModal);
     $('pfTestBtn').addEventListener('click', testProviderConnection);
     $('pfSaveBtn').addEventListener('click', saveProviderFromForm);
+
+    // 语言切换
+    syncLangToggle();
+    document.querySelectorAll('#langToggle button').forEach((btn) => {
+      btn.addEventListener('click', () => I18n.setLang(btn.dataset.lang));
+    });
+
+    // 语言变化：重渲染静态文案 + 当前视图的动态内容
+    document.addEventListener('langchange', onLangChange);
+  }
+
+  /** 同步语言切换按钮的高亮状态 */
+  function syncLangToggle() {
+    const cur = I18n.getLang();
+    document.querySelectorAll('#langToggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.lang === cur);
+    });
+  }
+
+  /** 切换语言后按当前所在视图重渲染动态内容 */
+  function onLangChange() {
+    syncLangToggle();
+    // 重新渲染 <option> 等动态文案
+    refreshTagFilter();
+    // 按当前 Tab 刷新对应数据
+    if ($('panel-home').classList.contains('active')) loadHome();
+    if ($('panel-library').classList.contains('active')) loadLibrary();
+    if ($('panel-settings').classList.contains('active')) { renderProviderList(); loadStats(); }
+    // 阅读页若打开，重新渲染当前剪藏（用已有 state，无需重新拉取）
+    if (!$('readerView').hidden && state.currentReaderClipping) {
+      const d = state.currentReaderClipping;
+      // 重建元信息 / 用量（标签编辑器内文案也依赖 lang，但当前编辑中不打断）
+      const authorText = fmtAuthors(d.author);
+      const metaParts = [
+        d.platform && escapeHtml(d.platform),
+        authorText && escapeHtml(t('meta.author') + authorText),
+        d.publishedAt && escapeHtml(t('meta.published') + fmtDate(d.publishedAt)),
+        escapeHtml(t('meta.savedAt') + fmtDate(d.savedAt))
+      ].filter(Boolean);
+      $('readerMeta').innerHTML = metaParts.map((s) => '<span>' + s + '</span>').join('');
+      const costText = d.cost ? fmtCost(d.cost) : '¥0';
+      $('readerUsage').innerHTML =
+        '<div>' + escapeHtml(t('meta.model')) + '<b>' + escapeHtml(d.model) + '</b></div>' +
+        '<div>' + escapeHtml(t('usage.input')) + ' <b>' + fmtNum(d.promptTokens) + '</b> · ' + escapeHtml(t('usage.output')) + ' <b>' + fmtNum(d.completionTokens) + '</b> · ' + escapeHtml(t('usage.total')) + ' <b>' + fmtNum(d.totalTokens) + '</b></div>' +
+        '<div>' + escapeHtml(t('meta.cost')) + '<b>' + costText + '</b></div>';
+      if (!state.isEditing) renderReaderTags(d);
+    }
   }
 
   // ============ 启动 ============
+  // 先按检测到的语言应用静态文案 + 设置 <html lang>
+  document.documentElement.lang = I18n.getLang() === 'en' ? 'en' : 'zh-CN';
+  I18n.applyTo();
   initTabs();
   initEvents();
   loadConfig();

@@ -15,16 +15,20 @@ const {
   deleteClipping
 } = require('../db');
 const { sanitizeHtml } = require('../extract');
+const { t, pickLang } = require('../i18n');
 
 const router = express.Router();
 
 // 创建
 router.post('/', (req, res) => {
+  const lang = pickLang(req);
   try {
     const b = req.body || {};
     if (!b.url || !b.title || !b.summary || !b.model) {
-      return res.status(400).json({ error: '缺少必填字段（url/title/summary/model）' });
+      return res.status(400).json({ error: t(lang, 'err.missingFields') });
     }
+    // 摘要语言：优先用 body.lang（前端随保存请求显式带上），否则按请求头
+    const clipLang = b.lang === 'en' ? 'en' : (lang === 'en' ? 'en' : 'zh');
     const id = insertClipping({
       url: b.url,
       title: b.title,
@@ -41,16 +45,18 @@ router.post('/', (req, res) => {
       totalTokens: b.totalTokens,
       cost: b.cost,
       contentText: b.contentText,
-      contentHtml: b.contentHtml
+      contentHtml: b.contentHtml,
+      lang: clipLang
     });
     res.json({ id });
   } catch (err) {
-    res.status(500).json({ error: `保存失败：${err.message}` });
+    res.status(500).json({ error: t(lang, 'err.saveFailed', { msg: err.message }) });
   }
 });
 
 // 列表
 router.get('/', (req, res) => {
+  const lang = pickLang(req);
   try {
     const result = listClippings({
       q: req.query.q,
@@ -59,26 +65,29 @@ router.get('/', (req, res) => {
       limit: parseInt(req.query.limit, 10) || 50,
       offset: parseInt(req.query.offset, 10) || 0,
       from: req.query.from,
-      to: req.query.to
+      to: req.query.to,
+      lang // 仅返回当前界面语言对应的剪藏
     });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: `查询失败：${err.message}` });
+    res.status(500).json({ error: t(lang, 'err.queryFailed', { msg: err.message }) });
   }
 });
 
 // 详情
 router.get('/:id', (req, res) => {
+  const lang = pickLang(req);
   const item = getClipping(Number(req.params.id));
-  if (!item) return res.status(404).json({ error: '剪藏不存在' });
+  if (!item) return res.status(404).json({ error: t(lang, 'err.clippingNotFound') });
   res.json(item);
 });
 
 // 编辑
 router.put('/:id', (req, res) => {
+  const lang = pickLang(req);
   const id = Number(req.params.id);
   const existing = getClipping(id);
-  if (!existing) return res.status(404).json({ error: '剪藏不存在' });
+  if (!existing) return res.status(404).json({ error: t(lang, 'err.clippingNotFound') });
   try {
     const body = req.body || {};
 
@@ -100,14 +109,15 @@ router.put('/:id', (req, res) => {
     const updated = updateClipping(id, payload);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: `更新失败：${err.message}` });
+    res.status(500).json({ error: t(lang, 'err.updateFailed', { msg: err.message }) });
   }
 });
 
 // 删除
 router.delete('/:id', (req, res) => {
+  const lang = pickLang(req);
   const id = Number(req.params.id);
-  if (!getClipping(id)) return res.status(404).json({ error: '剪藏不存在' });
+  if (!getClipping(id)) return res.status(404).json({ error: t(lang, 'err.clippingNotFound') });
   deleteClipping(id);
   res.json({ ok: true });
 });

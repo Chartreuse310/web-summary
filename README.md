@@ -1,4 +1,4 @@
-# 📚 网页剪藏库
+# 📚 CTZ's Web Summary Index
 
 输入网址 → 自动抓取网页 → AI 生成中文摘要 → 永久收藏、统计与可视化。
 
@@ -28,6 +28,11 @@
 
 ## 🚀 快速开始
 
+### 0. 前置要求
+
+- **Node.js ≥ 18**（用到了原生 `fetch`、`AbortSignal.timeout` 等）
+- 一个可用的 AI 服务商 API Key（智谱 GLM 或并行 paratera，注册即有免费额度）
+
 ### 1. 安装依赖并启动
 
 ```bash
@@ -37,7 +42,7 @@ npm start
 npm run dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。
+首次启动会自动创建 `data/` 目录和 `data/clippings.db` 数据库，无需手动准备。打开 [http://localhost:3000](http://localhost:3000)。
 
 ### 2. 在页面配置服务商
 
@@ -151,11 +156,14 @@ web-summary/
 
 ## 🔒 安全说明
 
-- API Key 仅保存在后端 `.env`，前端永远接触不到
-- `.env` 与 `data/` 均在 `.gitignore` 中，不会被提交
-- 仅允许 http/https 协议的网址
-- 抓取设有 10 秒超时
-- 所有数据保存在本地，不上传任何第三方
+- API Key 有两种存放方式，按优先级生效：
+  1. **前端 localStorage**（默认）：Key 仅存于你当前浏览器，请求时随调用转发给后端，**不落盘、不进 git**。换浏览器需重新填写，公共电脑不建议使用。
+  2. **后端 `.env`**（兜底 / 团队共享）：前端未配置时回退读取 `.env`，适合多人共用部署。
+- 后端做无状态转发，不持久化任何 Key，不同浏览器各自的 Key 互不干扰。
+- `.env` 与 `data/` 均在 `.gitignore` 中，不会被提交。
+- 仅允许 http/https 协议的网址。
+- 抓取设有 10 秒超时。
+- 所有数据保存在本地，不上传任何第三方。
 
 ## 🛠️ 开发
 

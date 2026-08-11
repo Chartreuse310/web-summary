@@ -5,31 +5,35 @@
  */
 const express = require('express');
 const { getStats, getTokenTrend, getTimeClusters } = require('../db');
+const { t, pickLang } = require('../i18n');
 
 const router = express.Router();
 
 router.get('/', (req, res) => {
+  const lang = pickLang(req);
   try {
-    res.json(getStats());
+    res.json(getStats({ lang }));
   } catch (err) {
-    res.status(500).json({ error: `统计失败：${err.message}` });
+    res.status(500).json({ error: t(lang, 'err.statsFailed', { msg: err.message }) });
   }
 });
 
 router.get('/trend', (req, res) => {
+  const lang = pickLang(req);
   try {
     const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
-    res.json(getTokenTrend(days));
+    res.json(getTokenTrend(days, { lang }));
   } catch (err) {
-    res.status(500).json({ error: `趋势查询失败：${err.message}` });
+    res.status(500).json({ error: t(lang, 'err.trendFailed', { msg: err.message }) });
   }
 });
 
 router.get('/clusters', (req, res) => {
+  const lang = pickLang(req);
   try {
-    res.json(getTimeClusters());
+    res.json(getTimeClusters({ lang }));
   } catch (err) {
-    res.status(500).json({ error: `聚类查询失败：${err.message}` });
+    res.status(500).json({ error: t(lang, 'err.clustersFailed', { msg: err.message }) });
   }
 });
 

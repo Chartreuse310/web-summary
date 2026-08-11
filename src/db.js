@@ -42,10 +42,12 @@ db.exec(`
     cost              REAL DEFAULT 0,
     content_text      TEXT,
     content_html      TEXT,        -- 清洗后的结构化全文 HTML
+    lang              TEXT DEFAULT 'zh',  -- 摘要生成时的界面语言（zh/en），用于分区筛选
     saved_at          TEXT NOT NULL  -- ISO 时间字符串
   );
   CREATE INDEX IF NOT EXISTS idx_saved_at ON clippings(saved_at);
   CREATE INDEX IF NOT EXISTS idx_tags ON clippings(tags);
+  -- idx_lang 在下方迁移块中创建（旧库需先 ALTER 加列再建索引）
 `);
 
 // ===== 幻移：为旧库补 oneliner 列（幂等，可反复重启）=====
@@ -75,6 +77,19 @@ db.exec(`
     const canonical = JSON.stringify(normalizeAuthors(r.author));
     if (r.author !== canonical) upd.run(canonical, r.id);
   }
+}
+
+// ===== 幻移：为旧库补 lang 列 + 回填历史数据为 zh（幂等，可反复重启）=====
+// 中英文分区存储：每条剪藏记录摘要生成时的界面语言。
+// 历史数据全部为中文生成，统一标记 lang='zh'；新生成的按当前语言写入。
+{
+  const cols = db.prepare("PRAGMA table_info(clippings)").all().map((c) => c.name);
+  if (!cols.includes('lang')) {
+    db.exec("ALTER TABLE clippings ADD COLUMN lang TEXT DEFAULT 'zh'");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_lang ON clippings(lang)");
+  }
+  // 历史无 lang 的全部回填为 zh（幂等：已有值的不会被覆盖）
+  db.prepare("UPDATE clippings SET lang = 'zh' WHERE lang IS NULL").run();
 }
 
 // ===== 回填：给 oneliner 为空的旧数据补一句话总结 =====
@@ -111,6 +126,7 @@ function rowToObj(row) {
     cost: row.cost,
     contentText: row.content_text,
     contentHtml: row.content_html,
+    lang: row.lang || 'zh',
     savedAt: row.saved_at
   };
 }
@@ -189,10 +205,10 @@ function insertClipping(d) {
   const stmt = db.prepare(`
     INSERT INTO clippings
       (url, title, author, platform, published_at, outline, summary, oneliner, tags,
-       model, prompt_tokens, completion_tokens, total_tokens, cost, content_text, content_html, saved_at)
+       model, prompt_tokens, completion_tokens, total_tokens, cost, content_text, content_html, lang, saved_at)
     VALUES
       (@url, @title, @author, @platform, @publishedAt, @outline, @summary, @oneliner, @tags,
-       @model, @promptTokens, @completionTokens, @totalTokens, @cost, @contentText, @contentHtml, @savedAt)
+       @model, @promptTokens, @completionTokens, @totalTokens, @cost, @contentText, @contentHtml, @lang, @savedAt)
   `);
   const result = stmt.run({
     url: d.url,
@@ -211,6 +227,7 @@ function insertClipping(d) {
     cost: d.cost || 0,
     contentText: d.contentText || null,
     contentHtml: d.contentHtml || null,
+    lang: d.lang === 'en' ? 'en' : 'zh',
     savedAt: now
   });
   return result.lastInsertRowid;
@@ -219,10 +236,15 @@ function insertClipping(d) {
 /**
  * 列表查询（带搜索、tag 筛选、分页）
  */
-function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, to } = {}) {
+function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, to, lang } = {}) {
   const where = [];
   const params = {};
 
+  // 按语言分区筛选：仅返回当前界面语言下生成的剪藏
+  if (lang) {
+    where.push('lang = @lang');
+    params.lang = lang;
+  }
   if (q) {
     where.push('(title LIKE @q OR summary LIKE @q OR author LIKE @q)');
     params.q = `%${q}%`;
@@ -317,17 +339,21 @@ function deleteClipping(id) {
 
 /**
  * 汇总统计：总数、累计 token、累计费用、按模型/平台分布
+ * @param {object} opt { lang } 仅统计指定语言的剪藏（中英文分区）
  */
-function getStats() {
+function getStats({ lang } = {}) {
+  const langWhere = lang ? 'WHERE lang = ?' : '';
+  const langArg = lang ? [lang] : [];
+
   const totals = db
     .prepare(
       `SELECT
          COUNT(*)                    AS count,
          COALESCE(SUM(total_tokens), 0)  AS totalTokens,
          COALESCE(SUM(cost), 0)          AS totalCost
-       FROM clippings`
+       FROM clippings ${langWhere}`
     )
-    .get();
+    .get(...langArg);
 
   const byModel = db
     .prepare(
@@ -335,19 +361,19 @@ function getStats() {
               COUNT(*)                    AS count,
               COALESCE(SUM(total_tokens),0) AS totalTokens,
               COALESCE(SUM(cost),0)         AS totalCost
-       FROM clippings GROUP BY model ORDER BY totalTokens DESC`
+       FROM clippings ${langWhere} GROUP BY model ORDER BY totalTokens DESC`
     )
-    .all();
+    .all(...langArg);
 
   const byPlatform = db
     .prepare(
       `SELECT COALESCE(platform,'未知') AS platform, COUNT(*) AS count
-       FROM clippings GROUP BY platform ORDER BY count DESC LIMIT 10`
+       FROM clippings ${langWhere} GROUP BY platform ORDER BY count DESC LIMIT 10`
     )
-    .all();
+    .all(...langArg);
 
   // 按作者分布（从 JSON 数组展开，每个作者独立计数 + 累计 token/费用）
-  const allAuthorRows = db.prepare('SELECT author, total_tokens, cost FROM clippings').all();
+  const allAuthorRows = db.prepare(`SELECT author, total_tokens, cost FROM clippings ${langWhere}`).all(...langArg);
   const authorStat = {};
   for (const row of allAuthorRows) {
     const names = normalizeAuthors(row.author);
@@ -365,7 +391,7 @@ function getStats() {
     .map(([author, v]) => ({ author, count: v.count, totalTokens: v.totalTokens, totalCost: v.totalCost }));
 
   // 所有 tag 频次（从 JSON 字段解析）
-  const allTags = db.prepare('SELECT tags FROM clippings').all();
+  const allTags = db.prepare(`SELECT tags FROM clippings ${langWhere}`).all(...langArg);
   const tagCount = {};
   for (const { tags } of allTags) {
     const arr = safeParse(tags, []);
@@ -394,30 +420,35 @@ function getStats() {
 
 /**
  * 时间聚类：按年/月/周/日聚合篇数（供剪藏库左侧时间筛选）
+ * @param {object} opt { lang }
  */
-function getTimeClusters() {
+function getTimeClusters({ lang } = {}) {
+  const langWhere = lang ? 'WHERE lang = ?' : '';
+  const langArg = lang ? [lang] : [];
   const byYear = db
-    .prepare(`SELECT substr(saved_at,1,4) AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC`)
-    .all();
+    .prepare(`SELECT substr(saved_at,1,4) AS key, COUNT(*) AS count FROM clippings ${langWhere} GROUP BY key ORDER BY key DESC`)
+    .all(...langArg);
   const byMonth = db
-    .prepare(`SELECT substr(saved_at,1,7) AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC`)
-    .all();
+    .prepare(`SELECT substr(saved_at,1,7) AS key, COUNT(*) AS count FROM clippings ${langWhere} GROUP BY key ORDER BY key DESC`)
+    .all(...langArg);
   const byWeek = db
     // 以「所在周周一」日期为 key（dow: 0=周日 → 折算为距周一天数），便于前端换算 from/to
-    .prepare(`SELECT date(saved_at, '-' || ((CAST(strftime('%w', saved_at) AS INTEGER) + 6) % 7) || ' days') AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC LIMIT 40`)
-    .all();
+    .prepare(`SELECT date(saved_at, '-' || ((CAST(strftime('%w', saved_at) AS INTEGER) + 6) % 7) || ' days') AS key, COUNT(*) AS count FROM clippings ${langWhere} GROUP BY key ORDER BY key DESC LIMIT 40`)
+    .all(...langArg);
   const byDay = db
-    .prepare(`SELECT substr(saved_at,1,10) AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC LIMIT 60`)
-    .all();
+    .prepare(`SELECT substr(saved_at,1,10) AS key, COUNT(*) AS count FROM clippings ${langWhere} GROUP BY key ORDER BY key DESC LIMIT 60`)
+    .all(...langArg);
   return { byYear, byMonth, byWeek, byDay };
 }
 
 /**
  * 时间趋势：最近 N 天每天的 token / cost / count
  * @param {number} days 默认 30
+ * @param {object} opt { lang }
  */
-function getTokenTrend(days = 30) {
+function getTokenTrend(days = 30, { lang } = {}) {
   // SQLite 用 substr 取 saved_at 的 YYYY-MM-DD
+  const langClause = lang ? 'AND lang = @lang' : '';
   const rows = db
     .prepare(
       `SELECT
@@ -426,11 +457,11 @@ function getTokenTrend(days = 30) {
          COALESCE(SUM(cost), 0)                     AS cost,
          COUNT(*)                                   AS count
        FROM clippings
-       WHERE saved_at >= date('now', @offset)
+       WHERE saved_at >= date('now', @offset) ${langClause}
        GROUP BY substr(saved_at, 1, 10)
        ORDER BY date ASC`
     )
-    .all({ offset: `-${days} day` });
+    .all({ offset: `-${days} day`, ...(lang ? { lang } : {}) });
 
   return rows.map((r) => ({
     date: r.date,

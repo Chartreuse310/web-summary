@@ -20,6 +20,7 @@ require('./src/db');
 
 const clippingsRouter = require('./src/router/clippings');
 const statsRouter = require('./src/router/stats');
+const { t, pickLang } = require('./src/i18n');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,16 +36,17 @@ app.get('/api/provider-presets', (req, res) => {
 
 // 抓取 + 总结主流程
 app.post('/api/summarize', async (req, res) => {
+  const lang = pickLang(req);
   try {
     const { url, provider, providerId, model } = req.body || {};
-    if (!url) return res.status(400).json({ error: '请输入要总结的网址' });
-    if (!model) return res.status(400).json({ error: '请选择模型' });
+    if (!url) return res.status(400).json({ error: t(lang, 'err.urlRequired') });
+    if (!model) return res.status(400).json({ error: t(lang, 'err.modelRequired') });
     if (!provider && !providerId) {
-      return res.status(400).json({ error: '请选择服务商（或到「设置」中配置）' });
+      return res.status(400).json({ error: t(lang, 'err.providerRequiredSrv') });
     }
 
     // 1. 抓取 + 元数据 + 大纲
-    const extracted = await extractContent(url);
+    const extracted = await extractContent(url, lang);
 
     // 2. AI 总结（provider 优先来自前端 localStorage，providerId 兜底 .env）
     const llmResult = await summarize({
@@ -52,7 +54,8 @@ app.post('/api/summarize', async (req, res) => {
       providerId,
       model,
       text: extracted.text,
-      title: extracted.title
+      title: extracted.title,
+      lang
     });
 
     // 3. token / 费用
@@ -74,18 +77,21 @@ app.post('/api/summarize', async (req, res) => {
       usage: usageInfo
     });
   } catch (err) {
-    const message = err.message || '未知错误';
-    const status = /超时|无法访问|HTTP \d+|未配置|无效或已过期|访问被拒绝/.test(message) ? 502 : 400;
+    const message = err.message || t(lang, 'err.unknown');
+    // 按 err.code 判定状态码：网络/上游/配置类 → 502，其余 → 400
+    const gatewayCodes = ['timeout', 'fetch_failed', 'http_error', 'not_configured', 'auth_invalid', 'access_denied', 'rate_limit'];
+    const status = (err.code && gatewayCodes.includes(err.code)) ? 502 : 400;
     res.status(status).json({ error: message });
   }
 });
 
 // 测试服务商连接（设置页用）：用提供的 Key 发一个最小请求，验证可用性
 app.post('/api/test-provider', async (req, res) => {
+  const lang = pickLang(req);
   try {
     const { baseUrl, apiKey, model } = req.body || {};
     if (!baseUrl || !apiKey || !model) {
-      return res.status(400).json({ error: '请填写 baseUrl、API Key、模型' });
+      return res.status(400).json({ error: t(lang, 'test.fillRequired') });
     }
     const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -96,22 +102,23 @@ app.post('/api/test-provider', async (req, res) => {
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: '你好' }],
+        messages: [{ role: 'user', content: lang === 'en' ? 'Hi' : '你好' }],
         max_tokens: 5
       })
     });
     if (resp.ok) {
-      return res.json({ ok: true, message: '连接成功' });
+      return res.json({ ok: true, message: t(lang, 'test.ok') });
     }
-    if (resp.status === 401) return res.json({ ok: false, message: 'API Key 无效或已过期' });
-    if (resp.status === 404) return res.json({ ok: false, message: '接口地址错误或模型不存在' });
-    if (resp.status === 429) return res.json({ ok: false, message: '请求过于频繁或额度用完' });
+    if (resp.status === 401) return res.json({ ok: false, message: t(lang, 'test.authInvalid') });
+    if (resp.status === 404) return res.json({ ok: false, message: t(lang, 'test.urlError') });
+    if (resp.status === 429) return res.json({ ok: false, message: t(lang, 'test.rateLimit') });
     let detail = '';
     try { detail = (await resp.json())?.error?.message || ''; } catch {}
-    return res.json({ ok: false, message: `服务商返回 HTTP ${resp.status}${detail ? '：' + detail : ''}` });
+    const detailStr = detail ? (lang === 'en' ? ': ' + detail : '：' + detail) : '';
+    return res.json({ ok: false, message: t(lang, 'test.httpError', { status: resp.status, detail: detailStr }) });
   } catch (err) {
-    if (err.name === 'TimeoutError') return res.json({ ok: false, message: '连接超时（15 秒）' });
-    return res.json({ ok: false, message: `连接失败：${err.message}` });
+    if (err.name === 'TimeoutError') return res.json({ ok: false, message: t(lang, 'test.timeout') });
+    return res.json({ ok: false, message: t(lang, 'test.failed', { msg: err.message }) });
   }
 });
 
@@ -119,7 +126,7 @@ app.post('/api/test-provider', async (req, res) => {
 app.use('/api/clippings', clippingsRouter);
 app.use('/api/stats', statsRouter);
 
-app.use((req, res) => res.status(404).json({ error: '接口不存在' }));
+app.use((req, res) => res.status(404).json({ error: t(pickLang(req), 'err.notFound') }));
 
 app.listen(PORT, () => {
   const configured = providers

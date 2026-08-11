@@ -10,6 +10,7 @@
  */
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
+const { makeError } = require('./i18n');
 
 // 静默 jsdom 的 CSS 解析噪音：jsdom 对现代 CSS（@layer / 嵌套等）会打
 // "Could not parse CSS stylesheet" 警告，但只影响样式、不破坏 DOM 提取。
@@ -18,15 +19,15 @@ silentConsole.on('jsdomError', () => { /* 吞掉 CSS/资源加载错误 */ });
 
 const MAX_CONTENT_CHARS = 8000;
 
-function validateUrl(raw) {
+function validateUrl(raw, lang) {
   let u;
   try {
     u = new URL(raw);
   } catch {
-    throw new Error('网址格式不正确，请输入完整的 URL（以 http:// 或 https:// 开头）');
+    throw makeError(lang, 'err.urlInvalid', null, 'bad_url');
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    throw new Error('仅支持 http:// 或 https:// 开头的网址');
+    throw makeError(lang, 'err.urlScheme', null, 'bad_url');
   }
   return u.href;
 }
@@ -201,8 +202,8 @@ function extractOutlineFromNumberedParagraphs(root) {
   });
 }
 
-async function extractContent(rawUrl) {
-  const url = validateUrl(rawUrl);
+async function extractContent(rawUrl, lang) {
+  const url = validateUrl(rawUrl, lang);
 
   let resp;
   try {
@@ -220,13 +221,13 @@ async function extractContent(rawUrl) {
     });
   } catch (err) {
     if (err.name === 'TimeoutError') {
-      throw new Error('抓取网页超时（10 秒），请稍后重试或换一个网址');
+      throw makeError(lang, 'err.fetchTimeout', null, 'timeout');
     }
-    throw new Error(`无法访问该网址：${err.message}`);
+    throw makeError(lang, 'err.fetchFailed', { msg: err.message }, 'fetch_failed');
   }
 
   if (!resp.ok) {
-    throw new Error(`目标网页返回错误（HTTP ${resp.status}），无法抓取`);
+    throw makeError(lang, 'err.httpError', { status: resp.status }, 'http_error');
   }
 
   const html = await resp.text();
@@ -266,7 +267,7 @@ async function extractContent(rawUrl) {
     try {
       article = new Readability(document).parse();
     } catch (err) {
-      throw new Error(`网页正文解析失败：${err.message}`);
+      throw makeError(lang, 'err.parseFailed', { msg: err.message }, 'parse_failed');
     }
     if (article && article.textContent && article.textContent.trim()) {
       text = cleanText(article.textContent);
@@ -281,7 +282,7 @@ async function extractContent(rawUrl) {
   }
 
   if (!text) {
-    throw new Error('未能从该网页提取到有效正文，可能是纯图片/视频页或需要登录');
+    throw makeError(lang, 'err.noContent', null, 'no_content');
   }
 
   text = text.slice(0, MAX_CONTENT_CHARS);

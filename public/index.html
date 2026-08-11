@@ -13,17 +13,23 @@
   <main class="container">
     <header class="header">
       <div class="header-brand">
-        <h1 class="title">CTZ's Web Summary Index</h1>
-        <p class="subtitle">抓取网页 → AI 中文摘要 → 永久收藏与统计</p>
+        <h1 class="title" data-i18n="header.title">CTZ's Web Summary Index</h1>
+        <p class="subtitle" data-i18n="header.subtitle">抓取网页 → AI 中文摘要 → 永久收藏与统计</p>
       </div>
-      <button class="btn-primary header-add-btn" id="homeAddBtn" type="button">+ 添加剪藏</button>
+      <div class="header-actions">
+        <div class="lang-toggle" id="langToggle" title="切换语言 / Switch language">
+          <button type="button" data-lang="zh" class="active">中</button>
+          <button type="button" data-lang="en">EN</button>
+        </div>
+        <button class="btn-primary header-add-btn" id="homeAddBtn" type="button" data-i18n="btn.addClipping">+ 添加剪藏</button>
+      </div>
     </header>
 
     <!-- Tab 切换 -->
     <nav class="tabs">
-      <button class="tab active" data-tab="home">首页</button>
-      <button class="tab" data-tab="library">剪藏库</button>
-      <button class="tab" data-tab="settings">设置</button>
+      <button class="tab active" data-tab="home" data-i18n="tab.home">首页</button>
+      <button class="tab" data-tab="library" data-i18n="tab.library">剪藏库</button>
+      <button class="tab" data-tab="settings" data-i18n="tab.settings">设置</button>
     </nav>
 
     <!-- ===== Tab 0: 首页 ===== -->
@@ -32,40 +38,40 @@
       <div class="home-top-grid">
         <div class="home-stats-col">
           <div class="home-stat card stat-big">
-            <span class="stat-label">条目数</span>
+            <span class="stat-label" data-i18n="stat.count">条目数</span>
             <span class="stat-value" id="homeCount">0</span>
           </div>
           <div class="home-stat card stat-big">
-            <span class="stat-label">标签量</span>
+            <span class="stat-label" data-i18n="stat.tags">标签量</span>
             <span class="stat-value" id="homeTags">0</span>
           </div>
           <div class="home-stat card stat-big">
-            <span class="stat-label">Token 消耗</span>
+            <span class="stat-label" data-i18n="stat.tokens">Token 消耗</span>
             <span class="stat-value" id="homeTokens">0</span>
           </div>
         </div>
 
         <div class="home-chart-col">
           <!-- 一句话总结（无标题，置于热力图上方）-->
-          <div class="oneliner-box" id="homeOneliner">加载中…</div>
+          <div class="oneliner-box" id="homeOneliner" data-i18n="oneliner.loading">加载中…</div>
           <!-- 贡献热力图（无外框/背景，悬停显示条目数据）-->
-          <div class="section-label">贡献热力图</div>
+          <div class="section-label" data-i18n="section.heatmap">贡献热力图</div>
           <div class="heatmap-wrap" id="homeHeatmapWrap">
             <div class="heatmap" id="homeHeatmap"></div>
           </div>
           <div class="heatmap-legend">
-            <span>少</span>
+            <span data-i18n="heat.less">少</span>
             <span class="heat-cell heat-L0"></span>
             <span class="heat-cell heat-L1"></span>
             <span class="heat-cell heat-L2"></span>
             <span class="heat-cell heat-L3"></span>
             <span class="heat-cell heat-L4"></span>
-            <span>多</span>
+            <span data-i18n="heat.more">多</span>
           </div>
         </div>
 
         <div class="home-tagcloud-col">
-          <div class="section-label">标签云</div>
+          <div class="section-label" data-i18n="section.tagCloud">标签云</div>
           <div id="homeTagCloud" class="tag-cloud-freq"></div>
         </div>
       </div>
@@ -73,9 +79,9 @@
       <!-- 下方：最近剪藏（全宽）-->
       <div class="home-bottom-grid">
         <div class="home-recent-col">
-          <div class="section-label" style="margin-bottom:10px">最近剪藏</div>
+          <div class="section-label" style="margin-bottom:10px" data-i18n="section.recent">最近剪藏</div>
           <div id="homeRecent" class="library-list">
-            <p class="empty-hint">暂无剪藏</p>
+            <p class="empty-hint" data-i18n="empty.recent">暂无剪藏</p>
           </div>
         </div>
       </div>
@@ -87,7 +93,7 @@
         <!-- 左栏：时间聚类 -->
         <aside class="library-sidebar">
           <div class="card sidebar-card">
-            <div class="section-label">时间聚类</div>
+            <div class="section-label" data-i18n="section.timeClusters">时间聚类</div>
             <div id="timeClusters" class="time-clusters"></div>
           </div>
         </aside>
@@ -96,30 +102,30 @@
         <div class="library-main">
           <div class="card library-toolbar">
             <input type="search" id="searchInput" class="url-input"
-                   placeholder="搜索标题/摘要/作者…" autocomplete="off" />
+                   placeholder="搜索标题/摘要/作者…" autocomplete="off" data-i18n-ph="search.placeholder" />
             <div class="toolbar-row">
-              <select id="tagFilter" class="select"><option value="">全部标签</option></select>
+              <select id="tagFilter" class="select"><option value="" data-i18n="filter.allTags">全部标签</option></select>
               <select id="sortBy" class="select">
-                <option value="recent">最近保存</option>
-                <option value="tokens">Token 用量</option>
-                <option value="cost">费用</option>
+                <option value="recent" data-i18n="sort.recent">最近保存</option>
+                <option value="tokens" data-i18n="sort.tokens">Token 用量</option>
+                <option value="cost" data-i18n="sort.cost">费用</option>
               </select>
-              <button id="refreshBtn" class="btn-secondary" type="button">刷新</button>
+              <button id="refreshBtn" class="btn-secondary" type="button" data-i18n="btn.refresh">刷新</button>
             </div>
             <div id="timeFilterBadge" class="time-filter-badge" hidden></div>
           </div>
 
           <div id="libraryList" class="library-list">
-            <p class="empty-hint">暂无剪藏，点「+ 添加剪藏」保存第一篇吧</p>
+            <p class="empty-hint" data-i18n="empty.library">暂无剪藏，点「+ 添加剪藏」保存第一篇吧</p>
           </div>
         </div>
 
         <!-- 右栏：排行 -->
         <aside class="library-rails">
           <div class="card rails-card">
-            <div class="section-label">标签排行</div>
+            <div class="section-label" data-i18n="section.tagRank">标签排行</div>
             <div id="libTagRank" class="rank-list"></div>
-            <div class="section-label" style="margin-top:16px">作者排行</div>
+            <div class="section-label" style="margin-top:16px" data-i18n="section.authorRank">作者排行</div>
             <div id="libAuthorRank" class="rank-list"></div>
           </div>
         </aside>
@@ -132,10 +138,10 @@
         <!-- 左：服务商配置 -->
         <div class="card settings-provider-col">
           <div class="settings-header">
-            <span class="stats-title">服务商配置</span>
-            <button id="addProviderBtn" class="btn-secondary" type="button">+ 添加服务商</button>
+            <span class="stats-title" data-i18n="settings.provider">服务商配置</span>
+            <button id="addProviderBtn" class="btn-secondary" type="button" data-i18n="btn.addProvider">+ 添加服务商</button>
           </div>
-          <p class="settings-hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
+          <p class="settings-hint" data-i18n="settings.hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
           <div id="providerList" class="provider-list"></div>
         </div>
 
@@ -143,15 +149,15 @@
         <div class="settings-stats-col">
           <div class="stats-summary">
             <div class="stat-big">
-              <span class="stat-label">剪藏总数</span>
+              <span class="stat-label" data-i18n="stat.totalClippings">剪藏总数</span>
               <span class="stat-value" id="bigCount">0</span>
             </div>
             <div class="stat-big">
-              <span class="stat-label">累计 Token</span>
+              <span class="stat-label" data-i18n="stat.totalTokens">累计 Token</span>
               <span class="stat-value" id="bigTokens">0</span>
             </div>
             <div class="stat-big">
-              <span class="stat-label">累计费用</span>
+              <span class="stat-label" data-i18n="stat.totalCost">累计费用</span>
               <span class="stat-value" id="bigCost">¥0</span>
             </div>
           </div>
@@ -162,28 +168,28 @@
       <div class="settings-stats">
         <div class="card chart-card">
           <div class="chart-header">
-            <span class="stats-title">用量趋势</span>
+            <span class="stats-title" data-i18n="chart.trend">用量趋势</span>
             <div class="metric-switch">
-              <button class="metric-btn active" data-metric="tokens">Token</button>
-              <button class="metric-btn" data-metric="cost">费用</button>
-              <button class="metric-btn" data-metric="count">剪藏数</button>
+              <button class="metric-btn active" data-metric="tokens" data-i18n="metric.tokens">Token</button>
+              <button class="metric-btn" data-metric="cost" data-i18n="metric.cost">费用</button>
+              <button class="metric-btn" data-metric="count" data-i18n="metric.count">剪藏数</button>
             </div>
           </div>
           <canvas id="trendChart" width="700" height="180"></canvas>
-          <p class="chart-empty" id="chartEmpty" hidden>暂无数据</p>
+          <p class="chart-empty" id="chartEmpty" hidden data-i18n="chart.empty">暂无数据</p>
         </div>
 
         <div class="settings-dist-grid">
           <div class="card">
-            <div class="stats-title" style="margin-bottom:12px">按模型分布</div>
+            <div class="stats-title" style="margin-bottom:12px" data-i18n="dist.byModel">按模型分布</div>
             <div id="byModel" class="dist-list"></div>
           </div>
           <div class="card">
-            <div class="stats-title" style="margin-bottom:12px">按平台分布</div>
+            <div class="stats-title" style="margin-bottom:12px" data-i18n="dist.byPlatform">按平台分布</div>
             <div id="byPlatform" class="dist-list"></div>
           </div>
           <div class="card">
-            <div class="stats-title" style="margin-bottom:12px">按作者分布</div>
+            <div class="stats-title" style="margin-bottom:12px" data-i18n="dist.byAuthor">按作者分布</div>
             <div id="byAuthor" class="dist-list"></div>
           </div>
         </div>
@@ -195,32 +201,32 @@
       <div class="modal-backdrop" id="summarizeBackdrop"></div>
       <div class="modal-body summarize-modal-body">
         <button class="modal-close" id="summarizeModalClose" type="button">×</button>
-        <div class="modal-title">添加剪藏</div>
+        <div class="modal-title" data-i18n="modal.addClipping">添加剪藏</div>
         <div class="card input-card">
-          <label class="field-label" for="urlInput">网页地址</label>
+          <label class="field-label" for="urlInput" data-i18n="field.url">网页地址</label>
           <input type="url" id="urlInput" class="url-input"
                  placeholder="https://example.com/article" autocomplete="off" />
 
           <div class="selects">
             <div class="select-group">
-              <label class="field-label" for="providerSelect">服务商</label>
+              <label class="field-label" for="providerSelect" data-i18n="field.provider">服务商</label>
               <select id="providerSelect" class="select"></select>
             </div>
             <div class="select-group">
-              <label class="field-label" for="modelSelect">模型</label>
+              <label class="field-label" for="modelSelect" data-i18n="field.model">模型</label>
               <select id="modelSelect" class="select"></select>
             </div>
           </div>
 
           <button id="summarizeBtn" class="btn-primary" type="button">
-            <span class="btn-text">生成摘要</span>
+            <span class="btn-text" data-i18n="btn.summarize">生成摘要</span>
           </button>
         </div>
 
         <!-- 加载 -->
         <div class="card loading-card" id="loadingCard" hidden>
           <div class="spinner"></div>
-          <p class="loading-text" id="loadingText">正在抓取网页…</p>
+          <p class="loading-text" id="loadingText" data-i18n="loading.fetching">正在抓取网页…</p>
         </div>
 
         <!-- 错误 -->
@@ -232,30 +238,30 @@
           <div class="meta-line" id="resultMeta"></div>
 
           <div class="result-section" id="outlineSection" hidden>
-            <div class="section-label">目录</div>
+            <div class="section-label" data-i18n="result.outline">目录</div>
             <div class="outline-tree" id="resultOutline"></div>
           </div>
 
           <div class="result-section" id="onelinerSection" hidden>
-            <div class="section-label">一句话总结</div>
+            <div class="section-label" data-i18n="result.oneliner">一句话总结</div>
             <div class="oneliner-box" id="resultOneliner"></div>
           </div>
 
           <div class="result-section">
-            <div class="section-label">摘要</div>
+            <div class="section-label" data-i18n="result.summary">摘要</div>
             <div class="result-summary" id="resultSummary"></div>
           </div>
 
           <div class="result-section">
-            <div class="section-label">标签</div>
+            <div class="section-label" data-i18n="result.tags">标签</div>
             <div class="tag-editor" id="tagEditor"></div>
           </div>
 
-          <a id="resultLink" class="result-link" target="_blank" rel="noopener noreferrer">查看原文 →</a>
+          <a id="resultLink" class="result-link" target="_blank" rel="noopener noreferrer" data-i18n="result.viewOriginal">查看原文 →</a>
 
           <div class="usage-bar" id="usageBar"></div>
 
-          <button id="saveBtn" class="btn-primary" type="button" disabled>保存到剪藏库</button>
+          <button id="saveBtn" class="btn-primary" type="button" disabled data-i18n="btn.saveToLibrary">保存到剪藏库</button>
         </div>
       </div>
     </div>
@@ -265,74 +271,74 @@
       <div class="modal-backdrop"></div>
       <div class="modal-body">
         <button class="modal-close" id="providerModalClose">×</button>
-        <div class="modal-title" id="providerModalTitle">配置服务商</div>
+        <div class="modal-title" id="providerModalTitle" data-i18n="modal.addProvider">配置服务商</div>
         <div class="provider-form">
           <div class="form-row">
-            <label class="field-label" for="pfName">名称</label>
-            <input type="text" id="pfName" class="url-input" placeholder="如：智谱 GLM" />
+            <label class="field-label" for="pfName" data-i18n="field.name">名称</label>
+            <input type="text" id="pfName" class="url-input" placeholder="如：智谱 GLM" data-i18n-ph="ph.name" />
           </div>
           <div class="form-row">
-            <label class="field-label" for="pfBaseUrl">接口地址 (Base URL)</label>
-            <input type="text" id="pfBaseUrl" class="url-input" placeholder="如：https://open.bigmodel.cn/api/paas/v4" />
+            <label class="field-label" for="pfBaseUrl" data-i18n="field.baseUrl">接口地址 (Base URL)</label>
+            <input type="text" id="pfBaseUrl" class="url-input" placeholder="如：https://open.bigmodel.cn/api/paas/v4" data-i18n-ph="ph.baseUrl" />
           </div>
           <div class="form-row">
-            <label class="field-label" for="pfApiKey">API Key</label>
+            <label class="field-label" for="pfApiKey" data-i18n="field.apiKey">API Key</label>
             <input type="password" id="pfApiKey" class="url-input" placeholder="sk-..." />
           </div>
           <div class="form-row">
-            <label class="field-label" for="pfModels">模型列表</label>
-            <input type="text" id="pfModels" class="url-input" placeholder="逗号分隔，如：glm-4-flash, glm-4, GLM-5.2" />
-            <p class="form-tip">下拉选择用。也可在调用时直接填模型名（不强校验）。</p>
+            <label class="field-label" for="pfModels" data-i18n="field.models">模型列表</label>
+            <input type="text" id="pfModels" class="url-input" placeholder="逗号分隔，如：glm-4-flash, glm-4, GLM-5.2" data-i18n-ph="ph.models" />
+            <p class="form-tip" data-i18n="form.tip">下拉选择用。也可在调用时直接填模型名（不强校验）。</p>
           </div>
           <div class="form-row">
-            <label class="field-label" for="pfTestModel">测试用模型</label>
-            <input type="text" id="pfTestModel" class="url-input" placeholder="用于测试连接的模型名，如 glm-4-flash" />
+            <label class="field-label" for="pfTestModel" data-i18n="field.testModel">测试用模型</label>
+            <input type="text" id="pfTestModel" class="url-input" placeholder="用于测试连接的模型名，如 glm-4-flash" data-i18n-ph="ph.testModel" />
           </div>
           <div class="modal-actions">
-            <button id="pfTestBtn" class="btn-secondary" type="button">测试连接</button>
+            <button id="pfTestBtn" class="btn-secondary" type="button" data-i18n="btn.testConnection">测试连接</button>
             <span class="pf-test-result" id="pfTestResult"></span>
             <span style="flex:1"></span>
-            <button id="pfSaveBtn" class="btn-primary" type="button" style="width:auto;padding:9px 24px">保存</button>
+            <button id="pfSaveBtn" class="btn-primary" type="button" style="width:auto;padding:9px 24px" data-i18n="btn.save">保存</button>
           </div>
         </div>
       </div>
     </div>
 
     <footer class="footer">
-      <p>Token 与费用为估算值，仅供参考。数据保存在本地 data/clippings.db。</p>
+      <p data-i18n="footer.note">Token 与费用为估算值，仅供参考。数据保存在本地 data/clippings.db。</p>
     </footer>
   </main>
 
   <!-- ===== 阅读页（全屏三栏）===== -->
   <div class="reader" id="readerView" hidden>
     <header class="reader-header">
-      <button class="reader-back" id="readerBack" type="button">← 返回剪藏库</button>
+      <button class="reader-back" id="readerBack" type="button" data-i18n="reader.back">← 返回剪藏库</button>
       <div class="reader-title-row">
         <h1 class="reader-title" id="readerTitle"></h1>
         <div class="reader-title-actions">
-          <button class="btn-secondary" id="readerEdit" type="button">编辑</button>
-          <button class="btn-primary reader-save-btn" id="readerSave" type="button" hidden>保存</button>
-          <button class="btn-secondary" id="readerCancel" type="button" hidden>取消</button>
-          <button class="btn-danger" id="readerDelete" type="button" hidden>删除</button>
+          <button class="btn-secondary" id="readerEdit" type="button" data-i18n="btn.edit">编辑</button>
+          <button class="btn-primary reader-save-btn" id="readerSave" type="button" hidden data-i18n="btn.save">保存</button>
+          <button class="btn-secondary" id="readerCancel" type="button" hidden data-i18n="btn.cancel">取消</button>
+          <button class="btn-danger" id="readerDelete" type="button" hidden data-i18n="btn.delete">删除</button>
         </div>
       </div>
       <!-- 编辑工具栏（仅编辑模式可见）-->
       <div class="reader-toolbar" id="readerToolbar" hidden>
         <div class="toolbar-group">
-          <button type="button" class="fmt-btn" data-block="H1" title="一级标题">H1</button>
-          <button type="button" class="fmt-btn" data-block="H2" title="二级标题">H2</button>
-          <button type="button" class="fmt-btn" data-block="H3" title="三级标题">H3</button>
-          <button type="button" class="fmt-btn" data-block="H4" title="四级标题">H4</button>
-          <button type="button" class="fmt-btn" data-block="P" title="转为正文段落">正文</button>
+          <button type="button" class="fmt-btn" data-block="H1" title="一级标题" data-i18n-title="fmt.h1">H1</button>
+          <button type="button" class="fmt-btn" data-block="H2" title="二级标题" data-i18n-title="fmt.h2">H2</button>
+          <button type="button" class="fmt-btn" data-block="H3" title="三级标题" data-i18n-title="fmt.h3">H3</button>
+          <button type="button" class="fmt-btn" data-block="H4" title="四级标题" data-i18n-title="fmt.h4">H4</button>
+          <button type="button" class="fmt-btn" data-block="P" title="转为正文段落" data-i18n-title="fmt.p" data-i18n="fmt.p">正文</button>
         </div>
-        <span class="toolbar-hint">将光标置于段落中，点击按钮转换标题级别</span>
+        <span class="toolbar-hint" data-i18n="toolbar.hint">将光标置于段落中，点击按钮转换标题级别</span>
       </div>
     </header>
 
     <div class="reader-body">
       <!-- 左栏：目录 -->
       <aside class="reader-toc" id="readerTocWrap">
-        <div class="reader-aside-title">目录</div>
+        <div class="reader-aside-title" data-i18n="reader.toc">目录</div>
         <nav class="toc-list" id="readerToc"></nav>
       </aside>
 
@@ -342,30 +348,31 @@
       <!-- 右栏：摘要信息 -->
       <aside class="reader-info">
         <section class="info-block" id="readerMetaBlock">
-          <div class="reader-aside-title">文章信息</div>
+          <div class="reader-aside-title" data-i18n="reader.articleInfo">文章信息</div>
           <div class="reader-meta-info" id="readerMeta"></div>
         </section>
         <section class="info-block" id="readerOnelinerBlock" hidden>
-          <div class="reader-aside-title">一句话总结</div>
+          <div class="reader-aside-title" data-i18n="reader.oneliner">一句话总结</div>
           <div class="oneliner-box" id="readerOneliner"></div>
         </section>
         <section class="info-block">
-          <div class="reader-aside-title">摘要</div>
+          <div class="reader-aside-title" data-i18n="reader.summary">摘要</div>
           <div class="reader-summary" id="readerSummary"></div>
         </section>
         <section class="info-block">
-          <div class="reader-aside-title">标签</div>
+          <div class="reader-aside-title" data-i18n="reader.tags">标签</div>
           <div class="reader-tags" id="readerTags"></div>
         </section>
         <section class="info-block">
-          <div class="reader-aside-title">模型与用量</div>
+          <div class="reader-aside-title" data-i18n="reader.usage">模型与用量</div>
           <div class="reader-usage" id="readerUsage"></div>
         </section>
-        <a id="readerLink" class="result-link" target="_blank" rel="noopener noreferrer">查看原文 →</a>
+        <a id="readerLink" class="result-link" target="_blank" rel="noopener noreferrer" data-i18n="reader.viewOriginal">查看原文 →</a>
       </aside>
     </div>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="chart.js"></script>
   <script src="app.js"></script>
 </body>
