@@ -10,22 +10,33 @@ class TrendChart {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    // 适配高分屏
-    this._setupDpr();
+    // 适配高分屏（只做一次，避免重复 new 时反复放大 canvas）
+    if (!canvas.dataset.dprReady) {
+      this._setupDpr();
+      canvas.dataset.dprReady = '1';
+    } else {
+      // 后续重建：复用首次记录的逻辑尺寸
+      this.cssW = Number(canvas.dataset.cssW);
+      this.cssH = Number(canvas.dataset.cssH);
+    }
   }
 
   _setupDpr() {
     const dpr = window.devicePixelRatio || 1;
+    // 用 getBoundingClientRect 取实际显示尺寸（CSS 像素），
+    // 而非 canvas.width 属性（后者会被反复放大，导致每次重渲染都翻倍）
     const rect = this.canvas.getBoundingClientRect();
-    // 用属性上的 width/height 作为逻辑尺寸的依据
-    const cssW = this.canvas.width || rect.width || 700;
-    const cssH = this.canvas.height || rect.height || 280;
+    const cssW = rect.width || 700;
+    const cssH = rect.height || 280;
     this.cssW = cssW;
     this.cssH = cssH;
+    // 记下来供后续 new TrendChart 复用
+    this.canvas.dataset.cssW = String(cssW);
+    this.canvas.dataset.cssH = String(cssH);
     this.canvas.style.width = cssW + 'px';
     this.canvas.style.height = cssH + 'px';
-    this.canvas.width = cssW * dpr;
-    this.canvas.height = cssH * dpr;
+    this.canvas.width = Math.round(cssW * dpr);
+    this.canvas.height = Math.round(cssH * dpr);
     this.ctx.scale(dpr, dpr);
   }
 
