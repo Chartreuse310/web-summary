@@ -28,7 +28,7 @@
 
     <!-- ===== Tab 0: 首页 ===== -->
     <section class="tab-panel active" id="panel-home">
-      <!-- 顶部行：三计数 + （一句话总结叠贡献热力图）-->
+      <!-- 顶部行：三计数 + （一句话总结叠贡献热力图）+ 标签云 -->
       <div class="home-top-grid">
         <div class="home-stats-col">
           <div class="home-stat card stat-big">
@@ -63,19 +63,20 @@
             <span>多</span>
           </div>
         </div>
+
+        <div class="home-tagcloud-col">
+          <div class="section-label">标签云</div>
+          <div id="homeTagCloud" class="tag-cloud-freq"></div>
+        </div>
       </div>
 
-      <!-- 下方：最近剪藏 + 标签云 -->
+      <!-- 下方：最近剪藏（全宽）-->
       <div class="home-bottom-grid">
         <div class="home-recent-col">
           <div class="section-label" style="margin-bottom:10px">最近剪藏</div>
           <div id="homeRecent" class="library-list">
             <p class="empty-hint">暂无剪藏</p>
           </div>
-        </div>
-        <div class="home-tagcloud-col">
-          <div class="section-label">标签云</div>
-          <div id="homeTagCloud" class="tag-cloud-freq"></div>
         </div>
       </div>
     </section>
