@@ -60,6 +60,7 @@ app.post('/api/summarize', async (req, res) => {
     res.json({
       title: extracted.title,
       summary: llmResult.summary,
+      oneliner: llmResult.oneliner,
       tags: llmResult.tags,
       url: extracted.url,
       author: extracted.author,

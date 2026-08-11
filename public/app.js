@@ -147,6 +147,14 @@
       setHidden($('outlineSection'), true);
     }
 
+    // 一句话总结
+    if (d.oneliner) {
+      $('resultOneliner').textContent = d.oneliner;
+      setHidden($('onelinerSection'), false);
+    } else {
+      setHidden($('onelinerSection'), true);
+    }
+
     // 摘要
     $('resultSummary').textContent = d.summary;
 
@@ -223,6 +231,7 @@
           publishedAt: d.publishedAt,
           outline: d.outline,
           summary: d.summary,
+          oneliner: d.oneliner,
           tags: d.tags,
           model: d.model,
           promptTokens: u.promptTokens,
@@ -292,6 +301,7 @@
           <div class="clip-item" data-id="${it.id}">
             <div class="clip-title">${escapeHtml(it.title)}</div>
             <div class="clip-meta">${meta}</div>
+            ${it.oneliner ? `<div class="clip-oneliner">${escapeHtml(it.oneliner)}</div>` : ''}
             <div class="clip-summary">${escapeHtml(it.summary.slice(0, 200))}</div>
             <div class="clip-footer">
               <div class="clip-tags">${tagsHtml}</div>
@@ -337,6 +347,7 @@
         ${[d.platform, d.author, d.publishedAt && fmtDate(d.publishedAt), `收藏 ${fmtDate(d.savedAt)}`].filter(Boolean).map(escapeHtml).join(' · ')}
       </div>
       ${outlineHtml}
+      ${d.oneliner ? `<div class="modal-section"><div class="section-label">💡 一句话总结</div><div class="oneliner-box">${escapeHtml(d.oneliner)}</div></div>` : ''}
       <div class="modal-section">
         <div class="section-label">📝 摘要</div>
         <div class="modal-summary">${escapeHtml(d.summary)}</div>

@@ -187,6 +187,18 @@ body {
   line-height: 1.7;
 }
 
+/* ===== 一句话总结 ===== */
+.oneliner-box {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: linear-gradient(135deg, #fff8e6, #fff4f0);
+  border-left: 3px solid #f5a623;
+  padding: 12px 14px;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+
 /* ===== 标签编辑器 ===== */
 .tag-editor { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tag-chip {
@@ -267,6 +279,14 @@ body {
 .clip-item:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
 .clip-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; line-height: 1.4; }
 .clip-meta { font-size: 11px; color: var(--text-lighter); margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.clip-oneliner {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.clip-oneliner::before { content: "💡 "; }
 .clip-summary { font-size: 13px; color: var(--text-light); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .clip-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 6px; }
 .clip-tags { display: flex; gap: 4px; flex-wrap: wrap; }

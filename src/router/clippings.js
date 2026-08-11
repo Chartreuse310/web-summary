@@ -32,6 +32,7 @@ router.post('/', (req, res) => {
       publishedAt: b.publishedAt,
       outline: b.outline,
       summary: b.summary,
+      oneliner: b.oneliner,
       tags: b.tags,
       model: b.model,
       promptTokens: b.promptTokens,

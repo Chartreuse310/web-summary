@@ -26,18 +26,21 @@ function flattenModels(modelsConfig) {
 
 const SYSTEM_PROMPT =
   '你是一个专业的网页内容总结助手。请根据用户提供的网页正文，' +
-  '同时生成【摘要】和【标签】两部分，严格按以下 JSON 格式输出（不要输出任何其他内容）：\n\n' +
+  '同时生成【一句话总结】【摘要】【标签】三部分，严格按以下 JSON 格式输出（不要输出任何其他内容）：\n\n' +
   '{\n' +
-  '  "summary": "摘要文本",\n' +
+  '  "oneliner": "一句话核心概括",\n' +
+  '  "summary": "完整摘要文本",\n' +
   '  "tags": ["标签1", "标签2", "标签3"]\n' +
   '}\n\n' +
   '要求：\n' +
-  '1. summary 先用一句话概括核心主题，再用 3-5 个要点（以「• 」开头，换行分隔）列出关键信息；' +
+  '1. oneliner 是一句话（≤30 字）的核心概括，高度凝练，让读者一眼抓住文章本质；' +
+  '不要用「本文介绍了…」「这篇文章…」这类开头，直接陈述核心内容；\n' +
+  '2. summary 先用一句话概括核心主题，再用 3-5 个要点（以「• 」开头，换行分隔）列出关键信息；' +
   '总字数控制在 300 字以内，语言精炼、信息密度高；\n' +
-  '2. tags 给出 3-5 个最能代表本文主题的中文标签，简洁（每个 2-6 字）；' +
+  '3. tags 给出 3-5 个最能代表本文主题的中文标签，简洁（每个 2-6 字）；' +
   '应覆盖领域/主题而非具体细节，如「人工智能」「产品设计」「宏观经济」；\n' +
-  '3. 即使原文是英文或其他语言，摘要和标签都必须用中文呈现；\n' +
-  '4. 只输出 JSON，不要包裹 markdown 代码块，不要任何解释。';
+  '4. 即使原文是英文或其他语言，所有输出都必须用中文呈现；\n' +
+  '5. 只输出 JSON，不要包裹 markdown 代码块，不要任何解释。';
 
 /**
  * 根据服务商 id 取其配置（含 apiKey）
@@ -132,15 +135,15 @@ async function summarize({ providerId, model, text, title }) {
   // usage 字段：{ prompt_tokens, completion_tokens, total_tokens }
   const usage = data.usage || null;
 
-  // 解析 AI 返回的 JSON {summary, tags}
+  // 解析 AI 返回的 JSON {oneliner, summary, tags}
   const parsed = parseSummaryJson(rawContent);
 
   return { ...parsed, usage, model };
 }
 
 /**
- * 解析 AI 返回的内容为 { summary, tags }
- * 容错：剥离 markdown 代码块包裹；解析失败时把原文当作摘要，tags 置空。
+ * 解析 AI 返回的内容为 { oneliner, summary, tags }
+ * 容错：剥离 markdown 代码块包裹；解析失败时把原文当作摘要，其余置空。
  */
 function parseSummaryJson(raw) {
   let text = raw.trim();
@@ -152,13 +155,18 @@ function parseSummaryJson(raw) {
   try {
     const obj = JSON.parse(text);
     const summary = typeof obj.summary === 'string' ? obj.summary.trim() : '';
+    const oneliner = typeof obj.oneliner === 'string' ? obj.oneliner.trim() : '';
     const tags = Array.isArray(obj.tags)
       ? obj.tags.filter((t) => typeof t === 'string').map((t) => t.trim()).filter(Boolean)
       : [];
-    return { summary: summary || raw.trim(), tags };
+    return {
+      summary: summary || raw.trim(),
+      oneliner: oneliner || '',
+      tags
+    };
   } catch {
     // 兜底：当纯文本摘要处理
-    return { summary: raw.trim(), tags: [] };
+    return { summary: raw.trim(), oneliner: '', tags: [] };
   }
 }
 

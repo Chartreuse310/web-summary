@@ -33,6 +33,7 @@ db.exec(`
     published_at      TEXT,
     outline           TEXT,        -- JSON 数组 [{level,text}]
     summary           TEXT NOT NULL,
+    oneliner          TEXT,        -- 一句话核心概括（≤30 字）
     tags              TEXT,        -- JSON 字符串数组
     model             TEXT NOT NULL,
     prompt_tokens     INTEGER DEFAULT 0,
@@ -46,6 +47,28 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tags ON clippings(tags);
 `);
 
+// ===== 幻移：为旧库补 oneliner 列（幂等，可反复重启）=====
+// 兼容已有数据库：若 clippings 表缺少 oneliner 字段则补上。
+{
+  const cols = db.prepare("PRAGMA table_info(clippings)").all().map((c) => c.name);
+  if (!cols.includes('oneliner')) {
+    db.exec('ALTER TABLE clippings ADD COLUMN oneliner TEXT');
+  }
+}
+
+// ===== 回填：给 oneliner 为空的旧数据补一句话总结 =====
+// 从 summary 的首行提取（prompt 让首行就是核心概括），保证历史数据体验一致。
+{
+  const rows = db.prepare("SELECT id, summary FROM clippings WHERE oneliner IS NULL").all();
+  const upd = db.prepare("UPDATE clippings SET oneliner = ? WHERE id = ?");
+  for (const r of rows) {
+    const firstLine = (r.summary || '').split('\n').map((s) => s.trim()).find((s) => s.length > 0) || '';
+    // 去掉要点符号 "• "，截断到 60 字内（兼容旧 summary 各种格式）
+    const oneliner = firstLine.replace(/^[•·\-]\s*/, '').slice(0, 60);
+    upd.run(oneliner || null, r.id);
+  }
+}
+
 // ===== 行 → 对象（解析 JSON 字段）=====
 function rowToObj(row) {
   if (!row) return null;
@@ -58,6 +81,7 @@ function rowToObj(row) {
     publishedAt: row.published_at,
     outline: safeParse(row.outline, []),
     summary: row.summary,
+    oneliner: row.oneliner,
     tags: safeParse(row.tags, []),
     model: row.model,
     promptTokens: row.prompt_tokens,
@@ -89,10 +113,10 @@ function insertClipping(d) {
   const now = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO clippings
-      (url, title, author, platform, published_at, outline, summary, tags,
+      (url, title, author, platform, published_at, outline, summary, oneliner, tags,
        model, prompt_tokens, completion_tokens, total_tokens, cost, content_text, saved_at)
     VALUES
-      (@url, @title, @author, @platform, @publishedAt, @outline, @summary, @tags,
+      (@url, @title, @author, @platform, @publishedAt, @outline, @summary, @oneliner, @tags,
        @model, @promptTokens, @completionTokens, @totalTokens, @cost, @contentText, @savedAt)
   `);
   const result = stmt.run({
@@ -103,6 +127,7 @@ function insertClipping(d) {
     publishedAt: d.publishedAt || null,
     outline: JSON.stringify(d.outline || []),
     summary: d.summary,
+    oneliner: d.oneliner || null,
     tags: JSON.stringify(d.tags || []),
     model: d.model,
     promptTokens: d.promptTokens || 0,
@@ -160,7 +185,7 @@ function getClipping(id) {
 /**
  * 更新（目前主要改 tags / title / summary）
  */
-function updateClipping(id, { title, summary, tags } = {}) {
+function updateClipping(id, { title, summary, oneliner, tags } = {}) {
   const sets = [];
   const params = { id };
   if (title !== undefined) {
@@ -170,6 +195,10 @@ function updateClipping(id, { title, summary, tags } = {}) {
   if (summary !== undefined) {
     sets.push('summary = @summary');
     params.summary = summary;
+  }
+  if (oneliner !== undefined) {
+    sets.push('oneliner = @oneliner');
+    params.oneliner = oneliner;
   }
   if (tags !== undefined) {
     sets.push('tags = @tags');
