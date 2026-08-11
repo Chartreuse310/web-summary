@@ -104,7 +104,7 @@
 
     if (list.length === 0) {
       summarizeBtn.disabled = true;
-      showError('尚未配置可用的服务商。请到「⚙️ 设置」中添加服务商并填写 API Key。');
+      showError('尚未配置可用的服务商。请到「设置」中添加服务商并填写 API Key。');
       return;
     }
     summarizeBtn.disabled = false;
@@ -293,11 +293,11 @@
         })
       });
       if (!ok) throw new Error(resp.error || '保存失败');
-      saveBtn.textContent = '✓ 已保存';
-      setTimeout(() => { saveBtn.textContent = '💾 保存到剪藏库'; saveBtn.disabled = false; }, 1500);
+      saveBtn.textContent = '已保存';
+      setTimeout(() => { saveBtn.textContent = '保存到剪藏库'; saveBtn.disabled = false; }, 1500);
     } catch (err) {
       alert(err.message);
-      saveBtn.textContent = '💾 保存到剪藏库';
+      saveBtn.textContent = '保存到剪藏库';
       saveBtn.disabled = false;
     }
   }
@@ -337,8 +337,9 @@
       libraryList.innerHTML = '<p class="empty-hint">暂无剪藏，去「生成摘要」保存第一篇吧</p>';
       return;
     }
+    const maxTokens = Math.max(...items.map((it) => it.totalTokens || 0), 1);
     libraryList.innerHTML = items
-      .map((it) => {
+      .map((it, i) => {
         const meta = [
           it.platform && escapeHtml(it.platform),
           it.author && escapeHtml(it.author),
@@ -349,17 +350,23 @@
           .slice(0, 5)
           .map((t) => `<span class="clip-tag">${escapeHtml(t)}</span>`)
           .join('');
+        const pct = ((it.totalTokens || 0) / maxTokens) * 100;
+        const num = String(i + 1).padStart(2, '0');
         return `
           <div class="clip-item" data-id="${it.id}">
-            <div class="clip-title">${escapeHtml(it.title)}</div>
-            <div class="clip-meta">${meta}</div>
-            ${it.oneliner ? `<div class="clip-oneliner">${escapeHtml(it.oneliner)}</div>` : ''}
-            <div class="clip-footer">
-              <div class="clip-tags">${tagsHtml}</div>
-              <div class="clip-stats">
-                <span class="model-badge">${escapeHtml(it.model)}</span>
-                · ${fmtNum(it.totalTokens)} tok · ${fmtCost(it.cost)}
+            <span class="clip-rank">${num}</span>
+            <div class="clip-main">
+              <div class="clip-title">${escapeHtml(it.title)}</div>
+              <div class="clip-meta">${meta}</div>
+              ${it.oneliner ? `<div class="clip-oneliner">${escapeHtml(it.oneliner)}</div>` : ''}
+              <div class="clip-footer">
+                <div class="clip-tags">${tagsHtml}</div>
+                <div class="clip-stats">
+                  <span class="model-badge">${escapeHtml(it.model)}</span>
+                  · ${fmtNum(it.totalTokens)} tok · ${fmtCost(it.cost)}
+                </div>
               </div>
+              <div class="clip-usage-bar"><div class="clip-usage-fill" style="width:${pct}%"></div></div>
             </div>
           </div>`;
       })
@@ -459,11 +466,11 @@
       article.innerHTML = d.contentHtml;
     } else if (d.contentText && d.contentText.trim()) {
       article.innerHTML =
-        '<div class="reader-fallback-notice">⚠️ 该剪藏为旧版本保存，未保留全文格式，以下为纯文本内容。</div>' +
+        '<div class="reader-fallback-notice">该剪藏为旧版本保存，未保留全文格式，以下为纯文本内容。</div>' +
         '<div class="reader-plaintext">' + escapeHtml(d.contentText) + '</div>';
     } else {
       article.innerHTML =
-        '<div class="reader-fallback-notice">⚠️ 该剪藏未保留全文内容。</div>';
+        '<div class="reader-fallback-notice">该剪藏未保留全文内容。</div>';
     }
   }
 
@@ -854,12 +861,13 @@
     if (!rows?.length) return '<p class="empty-hint">暂无数据</p>';
     const max = Math.max(...rows.map((r) => r[valKey] || 0), 1);
     return rows
-      .map((r) => {
+      .map((r, i) => {
         const name = escapeHtml(r.model || r.platform || '未知');
         const val = r[valKey] || 0;
         const pct = (val / max) * 100;
         const valText = valKey === 'totalTokens' ? fmtNum(val) + ' tok' : val + ' 篇';
-        return `<div class="dist-row"><span class="dist-name">${name}</span><div class="dist-bar"><div class="dist-bar-fill" style="width:${pct}%"></div></div><span class="dist-val">${valText}</span></div>`;
+        const num = String(i + 1).padStart(2, '0');
+        return `<div class="rank-row"><div class="rank-bar" style="width:${pct}%"></div><span class="rank-num">${num}</span><span class="rank-name">${name}</span><span class="rank-count">${valText}</span></div>`;
       })
       .join('');
   }
@@ -874,7 +882,7 @@
     }
     setHidden(canvas, false);
     setHidden(empty, true);
-    const colors = { tokens: '#4f6ef7', cost: '#22a06b', count: '#e5902b' };
+    const colors = { tokens: '#2d5a3d', cost: '#8b7355', count: '#db3d43' };
     const chart = new TrendChart(canvas);
     chart.render(state.trendData, { metric: state.trendMetric, color: colors[state.trendMetric] });
   }
@@ -989,10 +997,10 @@
       body: JSON.stringify({ baseUrl, apiKey, model })
     });
     if (ok && d.ok) {
-      result.textContent = '✓ ' + d.message;
+      result.textContent = d.message;
       result.className = 'pf-test-result ok';
     } else {
-      result.textContent = '✗ ' + (d?.message || d?.error || '测试失败');
+      result.textContent = (d?.message || d?.error || '测试失败');
       result.className = 'pf-test-result fail';
     }
   }

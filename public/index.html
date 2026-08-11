@@ -4,21 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>网页剪藏库</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="container">
     <header class="header">
-      <h1 class="title">📚 网页剪藏库</h1>
+      <h1 class="title">网页剪藏库</h1>
       <p class="subtitle">抓取网页 → AI 中文摘要 → 永久收藏与统计</p>
     </header>
 
     <!-- Tab 切换 -->
     <nav class="tabs">
-      <button class="tab active" data-tab="summarize">✨ 生成摘要</button>
-      <button class="tab" data-tab="library">📚 剪藏库</button>
-      <button class="tab" data-tab="stats">📊 统计</button>
-      <button class="tab" data-tab="settings">⚙️ 设置</button>
+      <button class="tab active" data-tab="summarize">生成摘要</button>
+      <button class="tab" data-tab="library">剪藏库</button>
+      <button class="tab" data-tab="stats">统计</button>
+      <button class="tab" data-tab="settings">设置</button>
     </nav>
 
     <!-- ===== Tab 1: 总结 ===== -->
@@ -59,22 +62,22 @@
         <div class="meta-line" id="resultMeta"></div>
 
         <div class="result-section" id="outlineSection" hidden>
-          <div class="section-label">📑 目录</div>
+          <div class="section-label">目录</div>
           <div class="outline-tree" id="resultOutline"></div>
         </div>
 
         <div class="result-section" id="onelinerSection" hidden>
-          <div class="section-label">💡 一句话总结</div>
+          <div class="section-label">一句话总结</div>
           <div class="oneliner-box" id="resultOneliner"></div>
         </div>
 
         <div class="result-section">
-          <div class="section-label">📝 摘要</div>
+          <div class="section-label">摘要</div>
           <div class="result-summary" id="resultSummary"></div>
         </div>
 
         <div class="result-section">
-          <div class="section-label">🏷️ 标签</div>
+          <div class="section-label">标签</div>
           <div class="tag-editor" id="tagEditor"></div>
         </div>
 
@@ -82,7 +85,7 @@
 
         <div class="usage-bar" id="usageBar"></div>
 
-        <button id="saveBtn" class="btn-primary" type="button" disabled>💾 保存到剪藏库</button>
+        <button id="saveBtn" class="btn-primary" type="button" disabled>保存到剪藏库</button>
       </div>
     </section>
 
@@ -126,7 +129,7 @@
 
       <div class="card chart-card">
         <div class="chart-header">
-          <span class="stats-title">📈 Token 用量趋势</span>
+          <span class="stats-title">Token 用量趋势</span>
           <div class="metric-switch">
             <button class="metric-btn active" data-metric="tokens">Token</button>
             <button class="metric-btn" data-metric="cost">费用</button>
@@ -138,17 +141,17 @@
       </div>
 
       <div class="card">
-        <div class="stats-title" style="margin-bottom:12px">🤖 按模型分布</div>
+        <div class="stats-title" style="margin-bottom:12px">按模型分布</div>
         <div id="byModel" class="dist-list"></div>
       </div>
 
       <div class="card">
-        <div class="stats-title" style="margin-bottom:12px">🌐 按平台分布</div>
+        <div class="stats-title" style="margin-bottom:12px">按平台分布</div>
         <div id="byPlatform" class="dist-list"></div>
       </div>
 
       <div class="card">
-        <div class="stats-title" style="margin-bottom:12px">🏷️ 热门标签</div>
+        <div class="stats-title" style="margin-bottom:12px">热门标签</div>
         <div id="topTags" class="tag-cloud"></div>
       </div>
     </section>
@@ -157,7 +160,7 @@
     <section class="tab-panel" id="panel-settings">
       <div class="card">
         <div class="settings-header">
-          <span class="stats-title">🔌 服务商配置</span>
+          <span class="stats-title">服务商配置</span>
           <button id="addProviderBtn" class="btn-secondary" type="button">+ 添加服务商</button>
         </div>
         <p class="settings-hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
@@ -237,7 +240,7 @@
     <div class="reader-body">
       <!-- 左栏：目录 -->
       <aside class="reader-toc" id="readerTocWrap">
-        <div class="reader-aside-title">📑 目录</div>
+        <div class="reader-aside-title">目录</div>
         <nav class="toc-list" id="readerToc"></nav>
       </aside>
 
@@ -247,23 +250,23 @@
       <!-- 右栏：摘要信息 -->
       <aside class="reader-info">
         <section class="info-block" id="readerMetaBlock">
-          <div class="reader-aside-title">📄 文章信息</div>
+          <div class="reader-aside-title">文章信息</div>
           <div class="reader-meta-info" id="readerMeta"></div>
         </section>
         <section class="info-block" id="readerOnelinerBlock" hidden>
-          <div class="reader-aside-title">💡 一句话总结</div>
+          <div class="reader-aside-title">一句话总结</div>
           <div class="oneliner-box" id="readerOneliner"></div>
         </section>
         <section class="info-block">
-          <div class="reader-aside-title">📝 摘要</div>
+          <div class="reader-aside-title">摘要</div>
           <div class="reader-summary" id="readerSummary"></div>
         </section>
         <section class="info-block">
-          <div class="reader-aside-title">🏷️ 标签</div>
+          <div class="reader-aside-title">标签</div>
           <div class="reader-tags" id="readerTags"></div>
         </section>
         <section class="info-block">
-          <div class="reader-aside-title">🤖 模型与用量</div>
+          <div class="reader-aside-title">模型与用量</div>
           <div class="reader-usage" id="readerUsage"></div>
         </section>
         <a id="readerLink" class="result-link" target="_blank" rel="noopener noreferrer">查看原文 →</a>

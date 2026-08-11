@@ -48,7 +48,7 @@ class TrendChart {
   render(points, opts = {}) {
     const { ctx, cssW: W, cssH: H } = this;
     const metric = opts.metric || 'tokens';
-    const color = opts.color || '#4f6ef7';
+    const color = opts.color || '#2d5a3d';
 
     ctx.clearRect(0, 0, W, H);
 
@@ -67,8 +67,8 @@ class TrendChart {
     const plotH = H - pad.t - pad.b;
 
     // ---- 网格 + Y 轴刻度 ----
-    ctx.strokeStyle = '#eef1f6';
-    ctx.fillStyle = '#9aa3b5';
+    ctx.strokeStyle = '#e0ddd6';
+    ctx.fillStyle = '#8a8880';
     ctx.font = '11px -apple-system, sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
@@ -176,7 +176,7 @@ class TrendChart {
   }
 
   _hexA(hex, a) {
-    // #4f6ef7 -> rgba(...)
+    // #2d5a3d -> rgba(...)
     const h = hex.replace('#', '');
     const r = parseInt(h.slice(0, 2), 16);
     const g = parseInt(h.slice(2, 4), 16);
