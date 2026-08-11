@@ -302,7 +302,6 @@
             <div class="clip-title">${escapeHtml(it.title)}</div>
             <div class="clip-meta">${meta}</div>
             ${it.oneliner ? `<div class="clip-oneliner">${escapeHtml(it.oneliner)}</div>` : ''}
-            <div class="clip-summary">${escapeHtml(it.summary.slice(0, 200))}</div>
             <div class="clip-footer">
               <div class="clip-tags">${tagsHtml}</div>
               <div class="clip-stats">
