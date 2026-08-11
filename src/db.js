@@ -41,6 +41,7 @@ db.exec(`
     total_tokens      INTEGER DEFAULT 0,
     cost              REAL DEFAULT 0,
     content_text      TEXT,
+    content_html      TEXT,        -- 清洗后的结构化全文 HTML
     saved_at          TEXT NOT NULL  -- ISO 时间字符串
   );
   CREATE INDEX IF NOT EXISTS idx_saved_at ON clippings(saved_at);
@@ -53,6 +54,14 @@ db.exec(`
   const cols = db.prepare("PRAGMA table_info(clippings)").all().map((c) => c.name);
   if (!cols.includes('oneliner')) {
     db.exec('ALTER TABLE clippings ADD COLUMN oneliner TEXT');
+  }
+}
+
+// ===== 幻移：为旧库补 content_html 列（幂等）=====
+{
+  const cols = db.prepare("PRAGMA table_info(clippings)").all().map((c) => c.name);
+  if (!cols.includes('content_html')) {
+    db.exec('ALTER TABLE clippings ADD COLUMN content_html TEXT');
   }
 }
 
@@ -89,6 +98,7 @@ function rowToObj(row) {
     totalTokens: row.total_tokens,
     cost: row.cost,
     contentText: row.content_text,
+    contentHtml: row.content_html,
     savedAt: row.saved_at
   };
 }
@@ -114,10 +124,10 @@ function insertClipping(d) {
   const stmt = db.prepare(`
     INSERT INTO clippings
       (url, title, author, platform, published_at, outline, summary, oneliner, tags,
-       model, prompt_tokens, completion_tokens, total_tokens, cost, content_text, saved_at)
+       model, prompt_tokens, completion_tokens, total_tokens, cost, content_text, content_html, saved_at)
     VALUES
       (@url, @title, @author, @platform, @publishedAt, @outline, @summary, @oneliner, @tags,
-       @model, @promptTokens, @completionTokens, @totalTokens, @cost, @contentText, @savedAt)
+       @model, @promptTokens, @completionTokens, @totalTokens, @cost, @contentText, @contentHtml, @savedAt)
   `);
   const result = stmt.run({
     url: d.url,
@@ -135,6 +145,7 @@ function insertClipping(d) {
     totalTokens: d.totalTokens || 0,
     cost: d.cost || 0,
     contentText: d.contentText || null,
+    contentHtml: d.contentHtml || null,
     savedAt: now
   });
   return result.lastInsertRowid;

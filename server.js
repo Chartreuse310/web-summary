@@ -69,6 +69,7 @@ app.post('/api/summarize', async (req, res) => {
       publishedAt: extracted.publishedAt,
       outline: extracted.outline,
       contentText: extracted.text,
+      contentHtml: extracted.contentHtml,
       model: llmResult.model,
       usage: usageInfo
     });

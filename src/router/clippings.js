@@ -39,7 +39,8 @@ router.post('/', (req, res) => {
       completionTokens: b.completionTokens,
       totalTokens: b.totalTokens,
       cost: b.cost,
-      contentText: b.contentText
+      contentText: b.contentText,
+      contentHtml: b.contentHtml
     });
     res.json({ id });
   } catch (err) {

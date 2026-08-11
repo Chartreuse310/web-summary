@@ -208,12 +208,47 @@
     </footer>
   </main>
 
-  <!-- 详情弹窗 -->
-  <div class="modal" id="detailModal" hidden>
-    <div class="modal-backdrop"></div>
-    <div class="modal-body">
-      <button class="modal-close" id="modalClose">×</button>
-      <div id="modalContent"></div>
+  <!-- ===== 阅读页（全屏三栏）===== -->
+  <div class="reader" id="readerView" hidden>
+    <header class="reader-header">
+      <button class="reader-back" id="readerBack" type="button">← 返回剪藏库</button>
+      <div class="reader-title-row">
+        <h1 class="reader-title" id="readerTitle"></h1>
+        <button class="btn-danger" id="readerDelete" type="button" hidden>删除</button>
+      </div>
+      <div class="reader-meta" id="readerMeta"></div>
+    </header>
+
+    <div class="reader-body">
+      <!-- 左栏：目录 -->
+      <aside class="reader-toc" id="readerTocWrap">
+        <div class="reader-aside-title">📑 目录</div>
+        <nav class="toc-list" id="readerToc"></nav>
+      </aside>
+
+      <!-- 中栏：全文 -->
+      <article class="reader-article" id="readerArticle"></article>
+
+      <!-- 右栏：摘要信息 -->
+      <aside class="reader-info">
+        <section class="info-block" id="readerOnelinerBlock" hidden>
+          <div class="reader-aside-title">💡 一句话总结</div>
+          <div class="oneliner-box" id="readerOneliner"></div>
+        </section>
+        <section class="info-block">
+          <div class="reader-aside-title">📝 摘要</div>
+          <div class="reader-summary" id="readerSummary"></div>
+        </section>
+        <section class="info-block">
+          <div class="reader-aside-title">🏷️ 标签</div>
+          <div class="reader-tags" id="readerTags"></div>
+        </section>
+        <section class="info-block">
+          <div class="reader-aside-title">🤖 模型与用量</div>
+          <div class="reader-usage" id="readerUsage"></div>
+        </section>
+        <a id="readerLink" class="result-link" target="_blank" rel="noopener noreferrer">查看原文 →</a>
+      </aside>
     </div>
   </div>
 

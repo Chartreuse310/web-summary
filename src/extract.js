@@ -205,11 +205,13 @@ async function extractContent(rawUrl) {
   const knownContainer = document.querySelector('#js_content, .rich_media_content');
   let text = '';
   let title = '';
+  let rawHtml = ''; // 原始正文 HTML，后续清洗为 contentHtml
   let outlineRoot = document; // 大纲查找的根节点
 
   if (knownContainer) {
     // 微信等：直接用正文容器
     text = cleanText(knownContainer.textContent);
+    rawHtml = knownContainer.innerHTML;
     title = (
       document.querySelector('#activity-name')?.textContent?.trim() ||
       document.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
@@ -230,6 +232,7 @@ async function extractContent(rawUrl) {
     if (article && article.textContent && article.textContent.trim()) {
       text = cleanText(article.textContent);
       title = (article.title || document.title || url).trim();
+      rawHtml = article.content || knownContainer?.innerHTML || '';
       // Readability 输出的 HTML 作为大纲根
       if (article.content) {
         const rDom = new JSDOM(article.content);
@@ -247,9 +250,13 @@ async function extractContent(rawUrl) {
   // 大纲：在正文容器内查找
   const outline = extractOutline(outlineRoot);
 
+  // 清洗为可安全渲染的结构化 HTML（白名单标签/属性 + 图片自适应）
+  const contentHtml = sanitizeHtml(rawHtml, url);
+
   return {
     title,
     text,
+    contentHtml,
     url,
     author: meta.author,
     platform: meta.platform,
@@ -267,4 +274,119 @@ function cleanText(s) {
     .trim();
 }
 
-module.exports = { extractContent, validateUrl };
+/**
+ * 允许保留的标签白名单（结构化富文本）
+ */
+const ALLOWED_TAGS = new Set([
+  'p', 'br', 'hr',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'ul', 'ol', 'li',
+  'blockquote', 'pre', 'code',
+  'strong', 'b', 'em', 'i', 'u', 'del', 's', 'mark', 'sub', 'sup',
+  'a', 'img', 'figure', 'figcaption',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'span', 'div', 'section'
+]);
+
+/**
+ * 清洗 HTML：白名单过滤标签和属性，避免 XSS + 去掉无关脚本/样式。
+ * 把相对图片地址解析为绝对地址；给 H 标签加 id 便于目录锚点。
+ * @param {string} raw 原始 innerHTML
+ * @param {string} baseUrl 用于解析相对 URL
+ * @returns {string} 安全的结构化 HTML
+ */
+function sanitizeHtml(raw, baseUrl) {
+  if (!raw) return '';
+  let dom;
+  try {
+    dom = new JSDOM(`<div id="root">${raw}</div>`);
+  } catch {
+    return '';
+  }
+  const root = dom.window.document.querySelector('#root');
+
+  // 递归清洗
+  const clean = (node) => {
+    // 子节点快照（遍历中会修改 children）
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      if (child.nodeType === 8 /* COMMENT */) {
+        node.removeChild(child);
+        continue;
+      }
+      if (child.nodeType === 3 /* TEXT */) continue;
+      if (child.nodeType !== 1 /* ELEMENT */) {
+        node.removeChild(child);
+        continue;
+      }
+      const tag = child.tagName.toLowerCase();
+
+      // 非白名单标签：若内部可能有内容则 unwrap（用子节点替换自身），否则删除
+      if (!ALLOWED_TAGS.has(tag)) {
+        const parent = child.parentNode;
+        if (parent) {
+          while (child.firstChild) parent.insertBefore(child.firstChild, child);
+          parent.removeChild(child);
+        }
+        continue;
+      }
+
+      // 清属性：只保留白名单属性
+      const attrs = Array.from(child.attributes);
+      const keepAttrs = [];
+      for (const attr of attrs) {
+        const name = attr.name.toLowerCase();
+        if (['src', 'href', 'alt', 'title', 'colspan', 'rowspan'].includes(name)) {
+          keepAttrs.push([name, attr.value]);
+        } else if (name === 'style' && /^(text-align|color|background-color)/i.test(attr.value)) {
+          // 仅保留少量安全的内联样式
+          const safe = attr.value.replace(/"/g, "'");
+          keepAttrs.push([name, safe]);
+        }
+      }
+      while (child.attributes.length) child.removeAttribute(child.attributes[0].name);
+      for (const [n, v] of keepAttrs) child.setAttribute(n, v);
+
+      // 危险脚本属性
+      child.removeAttribute('onclick');
+      child.removeAttribute('onload');
+      child.removeAttribute('onerror');
+
+      // 图片：src 解析为绝对地址
+      if (tag === 'img') {
+        const src = child.getAttribute('src');
+        if (src) {
+          try {
+            child.setAttribute('src', new URL(src, baseUrl).href);
+          } catch { /* 忽略非法 src */ }
+        }
+        child.setAttribute('loading', 'lazy');
+      }
+      // 链接：href 解析 + 安全跳转
+      if (tag === 'a') {
+        const href = child.getAttribute('href');
+        if (href) {
+          try {
+            child.setAttribute('href', new URL(href, baseUrl).href);
+            child.setAttribute('target', '_blank');
+            child.setAttribute('rel', 'noopener noreferrer');
+          } catch { /* 忽略 */ }
+        }
+      }
+      // H 标签：加 id 便于目录锚点跳转
+      if (/^h[1-6]$/.test(tag) && !child.id) {
+        const text = (child.textContent || '').trim().slice(0, 40);
+        if (text) {
+          child.id = 'h-' + text.replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase().replace(/^-|-$/g, '');
+        }
+      }
+
+      clean(child);
+    }
+  };
+  clean(root);
+
+  return root.innerHTML;
+}
+
+module.exports = { extractContent, validateUrl, sanitizeHtml };

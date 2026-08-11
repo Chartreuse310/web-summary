@@ -489,3 +489,240 @@ body {
   .title { font-size: 22px; }
   .tab { font-size: 12px; padding: 8px 4px; }
 }
+
+/* ================================================== */
+/* ===== 阅读页（三栏阅读视图）=====                    */
+/* ================================================== */
+
+.reader[hidden] { display: none; }
+
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- 顶部栏 ---- */
+.reader-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  box-shadow: var(--shadow);
+}
+.reader-back {
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 8px;
+}
+.reader-back:hover { text-decoration: underline; }
+.reader-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.reader-title {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.reader-meta {
+  font-size: 12px;
+  color: var(--text-lighter);
+  margin-top: 6px;
+}
+
+/* ---- 三栏布局 ---- */
+.reader-body {
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  width: 100%;
+  flex: 1;
+}
+
+/* ---- 左栏：目录 ---- */
+.reader-toc {
+  position: sticky;
+  top: 100px;
+  align-self: start;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+.reader-toc[hidden] { display: none; }
+.reader-aside-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-light);
+  margin-bottom: 10px;
+}
+.toc-list { display: flex; flex-direction: column; gap: 2px; }
+.toc-link {
+  display: block;
+  font-size: 13px;
+  color: var(--text-light);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  line-height: 1.4;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, background 0.15s;
+  word-break: break-word;
+}
+.toc-link:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+  border-left-color: var(--primary);
+}
+.toc-link.h2 { padding-left: 16px; }
+.toc-link.h3 { padding-left: 24px; }
+.toc-link.h4 { padding-left: 32px; }
+/* 静态目录（降级模式，不可点击）*/
+.toc-static {
+  font-size: 13px;
+  color: var(--text-light);
+  padding: 4px 8px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.toc-static.h2 { padding-left: 16px; }
+.toc-static.h3 { padding-left: 24px; }
+.toc-static.h4 { padding-left: 32px; }
+
+/* ---- 中栏：全文 ---- */
+.reader-article {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 32px 40px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  min-height: 60vh;
+}
+
+/* 文章排版 */
+.reader-article h1 { font-size: 24px; font-weight: 700; margin: 24px 0 12px; line-height: 1.4; }
+.reader-article h2 { font-size: 20px; font-weight: 700; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); line-height: 1.4; }
+.reader-article h3 { font-size: 17px; font-weight: 600; margin: 20px 0 10px; line-height: 1.4; }
+.reader-article h4 { font-size: 15px; font-weight: 600; margin: 16px 0 8px; }
+.reader-article p { margin: 10px 0; line-height: 1.8; font-size: 15px; }
+.reader-article img { max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; }
+.reader-article figure { margin: 14px 0; }
+.reader-article figcaption { font-size: 12px; color: var(--text-lighter); text-align: center; margin-top: 6px; }
+.reader-article blockquote {
+  border-left: 3px solid var(--primary);
+  padding: 8px 16px;
+  margin: 14px 0;
+  background: var(--primary-light);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-light);
+}
+.reader-article pre {
+  background: #1a2233;
+  color: #e6e9f0;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.reader-article code { font-family: "SF Mono", "Monaco", "Consolas", monospace; }
+.reader-article pre code { background: none; padding: 0; }
+.reader-article :not(pre) > code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.reader-article ul, .reader-article ol { padding-left: 24px; margin: 10px 0; }
+.reader-article li { margin: 4px 0; line-height: 1.7; }
+.reader-article a { color: var(--primary); }
+.reader-article table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+.reader-article th, .reader-article td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+.reader-article th { background: var(--bg); font-weight: 600; }
+.reader-article hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+/* 降级提示 */
+.reader-fallback-notice {
+  background: #fff8e6;
+  border: 1px solid #f5d76e;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #8a6d00;
+  margin-bottom: 16px;
+}
+.reader-plaintext {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+/* ---- 右栏：摘要信息 ---- */
+.reader-info {
+  position: sticky;
+  top: 100px;
+  align-self: start;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+.info-block {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.info-block[hidden] { display: none; }
+.reader-summary { font-size: 14px; white-space: pre-wrap; line-height: 1.7; word-break: break-word; }
+.reader-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.reader-usage { font-size: 12px; color: var(--text-light); display: flex; flex-direction: column; gap: 4px; }
+.reader-usage b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---- 阅读页响应式 ---- */
+/* 中屏：隐藏右栏，信息移到下方 */
+@media (max-width: 1100px) {
+  .reader-body {
+    grid-template-columns: 200px 1fr;
+  }
+  .reader-info {
+    grid-column: 1 / -1;
+    position: static;
+    max-height: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .reader-info .result-link { grid-column: 1 / -1; }
+}
+
+/* 窄屏：单栏堆叠 */
+@media (max-width: 768px) {
+  .reader-body {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 16px;
+  }
+  .reader-toc {
+    position: static;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .reader-info {
+    grid-template-columns: 1fr;
+  }
+  .reader-article { padding: 20px; }
+  .reader-header { padding: 12px 16px; }
+  .reader-title { font-size: 17px; }
+}

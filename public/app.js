@@ -17,7 +17,8 @@
     providers: [],
     currentResult: null, // 当前 summarize 结果，待保存
     trendMetric: 'tokens',
-    trendData: []
+    trendData: [],
+    currentReaderClipping: null // 当前阅读视图打开的剪藏对象
   };
 
   // ============ Tab 切换 ============
@@ -284,7 +285,9 @@
           promptTokens: u.promptTokens,
           completionTokens: u.completionTokens,
           totalTokens: u.totalTokens,
-          cost: u.priced ? u.totalCost : 0
+          cost: u.priced ? u.totalCost : 0,
+          contentText: d.contentText,
+          contentHtml: d.contentHtml
         })
       });
       if (!ok) throw new Error(resp.error || '保存失败');
@@ -376,65 +379,158 @@
     if (cur) tagFilter.value = cur;
   }
 
-  // 详情弹窗
+  // ============ 阅读页（三栏视图）============
+
   async function openDetail(id) {
     const { ok, d } = await api('/api/clippings/' + id);
     if (!ok) { alert(d.error || '加载失败'); return; }
-    const modal = $('detailModal');
-    const content = $('modalContent');
 
-    const outlineHtml = d.outline?.length
-      ? `<div class="modal-section"><div class="section-label">📑 目录</div><div class="outline-tree">${d.outline.map((h) => `<div class="${h.level}">${escapeHtml(h.text)}</div>`).join('')}</div></div>`
-      : '';
+    state.currentReaderClipping = d;
 
-    content.innerHTML = `
-      <div class="modal-title">${escapeHtml(d.title)}</div>
-      <div class="modal-meta">
-        ${[d.platform, d.author, d.publishedAt && fmtDate(d.publishedAt), `收藏 ${fmtDate(d.savedAt)}`].filter(Boolean).map(escapeHtml).join(' · ')}
-      </div>
-      ${outlineHtml}
-      ${d.oneliner ? `<div class="modal-section"><div class="section-label">💡 一句话总结</div><div class="oneliner-box">${escapeHtml(d.oneliner)}</div></div>` : ''}
-      <div class="modal-section">
-        <div class="section-label">📝 摘要</div>
-        <div class="modal-summary">${escapeHtml(d.summary)}</div>
-      </div>
-      <div class="modal-section">
-        <div class="section-label">🏷️ 标签</div>
-        <div class="tag-editor" id="modalTags"></div>
-      </div>
-      <div class="usage-bar">
-        模型 <b>${escapeHtml(d.model)}</b> · 输入 <b>${fmtNum(d.promptTokens)}</b> · 输出 <b>${fmtNum(d.completionTokens)}</b> · 总 <b>${fmtNum(d.totalTokens)}</b> · 费用 <b>${fmtCost(d.cost)}</b>
-      </div>
-      <div class="modal-actions">
-        <a class="result-link" href="${escapeHtml(d.url)}" target="_blank" rel="noopener">查看原文 →</a>
-        <span style="flex:1"></span>
-        <button class="btn-danger" id="modalDelete">删除</button>
-      </div>`;
+    // 隐藏主容器，显示阅读页
+    setHidden(document.querySelector('.container'), true);
+    setHidden($('readerView'), false);
 
-    // 详情内 tags 编辑
-    renderModalTags(d);
+    // ---- 头部 ----
+    $('readerTitle').textContent = d.title;
+    const metaParts = [
+      d.platform && escapeHtml(d.platform),
+      d.author && escapeHtml('作者：' + d.author),
+      d.publishedAt && escapeHtml('发布：' + fmtDate(d.publishedAt)),
+      escapeHtml('收藏：' + fmtDate(d.savedAt))
+    ].filter(Boolean);
+    $('readerMeta').innerHTML = metaParts.join(' · ');
 
-    $('modalDelete').addEventListener('click', async () => {
-      if (!confirm('确定删除这条剪藏？此操作不可撤销。')) return;
-      const { ok, d: resp } = await api('/api/clippings/' + id, { method: 'DELETE' });
-      if (!ok) { alert(resp.error || '删除失败'); return; }
-      closeModal();
-      loadLibrary();
-    });
+    // 删除按钮
+    setHidden($('readerDelete'), false);
 
-    setHidden(modal, false);
+    // ---- 中栏：全文（先渲染，TOC 依赖中栏 DOM）----
+    renderReaderArticle(d);
+
+    // ---- 左栏：目录 ----
+    buildReaderToc(d);
+
+    // ---- 右栏：一句话总结 ----
+    if (d.oneliner) {
+      $('readerOneliner').textContent = d.oneliner;
+      setHidden($('readerOnelinerBlock'), false);
+    } else {
+      setHidden($('readerOnelinerBlock'), true);
+    }
+
+    // ---- 右栏：摘要 ----
+    $('readerSummary').textContent = d.summary;
+
+    // ---- 右栏：标签（可编辑）----
+    renderReaderTags(d);
+
+    // ---- 右栏：模型与用量 ----
+    const costText = d.cost ? fmtCost(d.cost) : '¥0';
+    $('readerUsage').innerHTML =
+      '<div>模型：<b>' + escapeHtml(d.model) + '</b></div>' +
+      '<div>输入 <b>' + fmtNum(d.promptTokens) + '</b> · 输出 <b>' + fmtNum(d.completionTokens) + '</b> · 总 <b>' + fmtNum(d.totalTokens) + '</b></div>' +
+      '<div>费用：<b>' + costText + '</b></div>';
+
+    // ---- 右栏：原文链接 ----
+    $('readerLink').href = d.url;
+
+    // 存储 id 供删除使用
+    $('readerView').dataset.clippingId = String(id);
+
+    // 滚动到顶部
+    $('readerArticle').scrollTop = 0;
+    window.scrollTo(0, 0);
   }
 
-  function renderModalTags(clipping) {
-    const container = $('modalTags');
-    if (!container) return;
+  /**
+   * 渲染中栏全文，含旧剪藏降级处理
+   * - 有 contentHtml：直接渲染安全 HTML（后端已白名单清洗）
+   * - 无 contentHtml 但有 contentText：显示纯文本 + 降级提示
+   * - 两者都无：显示提示信息
+   */
+  function renderReaderArticle(d) {
+    const article = $('readerArticle');
+
+    if (d.contentHtml && d.contentHtml.trim()) {
+      article.innerHTML = d.contentHtml;
+    } else if (d.contentText && d.contentText.trim()) {
+      article.innerHTML =
+        '<div class="reader-fallback-notice">⚠️ 该剪藏为旧版本保存，未保留全文格式，以下为纯文本内容。</div>' +
+        '<div class="reader-plaintext">' + escapeHtml(d.contentText) + '</div>';
+    } else {
+      article.innerHTML =
+        '<div class="reader-fallback-notice">⚠️ 该剪藏未保留全文内容。</div>';
+    }
+  }
+
+  /**
+   * 构建左栏目录（TOC）
+   * 1. 优先从中栏 DOM 的 H1-H4 标签构建可点击 TOC → scrollIntoView 平滑滚动
+   * 2. DOM 无足够标题但 outline 字段有数据 → 降级为静态目录
+   * 3. 两者都无 → 隐藏左栏
+   */
+  function buildReaderToc(d) {
+    const article = $('readerArticle');
+    const toc = $('readerToc');
+    const tocWrap = $('readerTocWrap');
+    const headings = article.querySelectorAll('h1, h2, h3, h4');
+
+    if (headings.length >= 2) {
+      setHidden(tocWrap, false);
+      toc.innerHTML = '';
+      const usedIds = new Set();
+
+      headings.forEach((h, i) => {
+        // 确保每个标题有唯一 id
+        let id = h.id;
+        if (!id) {
+          const text = (h.textContent || '').trim().slice(0, 40);
+          id = 'h-' + text.replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase().replace(/^-|-$/g, '') || 'heading-' + i;
+          h.id = id;
+        }
+        if (usedIds.has(id)) {
+          id = id + '-' + i;
+          h.id = id;
+        }
+        usedIds.add(id);
+
+        const level = h.tagName.toLowerCase();
+        const link = document.createElement('a');
+        link.href = '#' + id;
+        link.className = 'toc-link ' + level;
+        link.textContent = (h.textContent || '').trim().slice(0, 50);
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        toc.appendChild(link);
+      });
+    } else if (d.outline && d.outline.length >= 2) {
+      // 降级：静态目录（不可点击，仅参考）
+      setHidden(tocWrap, false);
+      toc.innerHTML = d.outline
+        .map((h) => '<div class="toc-static ' + h.level + '">' + escapeHtml(h.text) + '</div>')
+        .join('');
+    } else {
+      setHidden(tocWrap, true);
+      toc.innerHTML = '';
+    }
+  }
+
+  /**
+   * 渲染右栏标签编辑器，增删标签即时 PUT 到后端
+   */
+  function renderReaderTags(clipping) {
+    const container = $('readerTags');
     container.innerHTML = '';
+
     (clipping.tags || []).forEach((t, i) => {
       const chip = document.createElement('span');
       chip.className = 'tag-chip';
-      chip.innerHTML = `${escapeHtml(t)} <span class="tag-remove" data-i="${i}">×</span>`;
+      chip.innerHTML = escapeHtml(t) + ' <span class="tag-remove" data-i="' + i + '">×</span>';
       container.appendChild(chip);
     });
+
     const input = document.createElement('input');
     input.className = 'tag-input';
     input.placeholder = '+ 添加（回车）';
@@ -444,14 +540,14 @@
         const tags = clipping.tags || [];
         if (!tags.includes(newTag)) {
           tags.push(newTag);
-          const { ok, d } = await api('/api/clippings/' + clipping.id, {
+          const { ok } = await api('/api/clippings/' + clipping.id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags })
           });
           if (ok) {
             clipping.tags = tags;
-            renderModalTags(clipping);
+            renderReaderTags(clipping);
           }
         } else {
           input.value = '';
@@ -460,7 +556,7 @@
     });
     container.appendChild(input);
 
-    container.querySelectorAll('.tag-remove').forEach(async (el) => {
+    container.querySelectorAll('.tag-remove').forEach((el) => {
       el.addEventListener('click', async () => {
         const i = Number(el.dataset.i);
         const tags = clipping.tags.filter((_, idx) => idx !== i);
@@ -469,13 +565,32 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tags })
         });
-        if (ok) { clipping.tags = tags; renderModalTags(clipping); }
+        if (ok) { clipping.tags = tags; renderReaderTags(clipping); }
       });
     });
   }
 
-  function closeModal() {
-    setHidden($('detailModal'), true);
+  /**
+   * 关闭阅读页，返回剪藏库
+   */
+  function closeReader() {
+    setHidden($('readerView'), true);
+    setHidden(document.querySelector('.container'), false);
+    $('readerArticle').innerHTML = '';
+    state.currentReaderClipping = null;
+  }
+
+  /**
+   * 删除当前阅读页的剪藏
+   */
+  async function handleReaderDelete() {
+    const id = Number($('readerView').dataset.clippingId);
+    if (!id) return;
+    if (!confirm('确定删除这条剪藏？此操作不可撤销。')) return;
+    const { ok, d } = await api('/api/clippings/' + id, { method: 'DELETE' });
+    if (!ok) { alert(d.error || '删除失败'); return; }
+    closeReader();
+    loadLibrary();
   }
 
   // ============ 统计 Tab ============
@@ -706,6 +821,17 @@
     sortBy.addEventListener('change', loadLibrary);
     $('refreshBtn').addEventListener('click', loadLibrary);
 
+    // 阅读页：返回 + 删除
+    $('readerBack').addEventListener('click', closeReader);
+    $('readerDelete').addEventListener('click', handleReaderDelete);
+
+    // ESC 键关闭阅读页
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('readerView').hidden) {
+        closeReader();
+      }
+    });
+
     document.querySelectorAll('.metric-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.metric-btn').forEach((b) => b.classList.remove('active'));
@@ -714,10 +840,6 @@
         drawTrend();
       });
     });
-
-    $('modalClose').addEventListener('click', closeModal);
-    // 详情弹窗的 backdrop（第一个 modal）
-    document.querySelectorAll('.modal')[0]?.querySelector('.modal-backdrop')?.addEventListener('click', closeModal);
 
     // 设置页：服务商编辑
     $('addProviderBtn').addEventListener('click', () => openProviderModal(null));
