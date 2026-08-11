@@ -74,10 +74,10 @@ body {
 .title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--ink); }
 .subtitle { color: var(--ink-4); font-size: 12px; margin-top: 6px; letter-spacing: 0.04em; }
 
-/* ===== Tabs（下划线编辑风）===== */
+/* ===== Tabs（下划线编辑风，内容自适应宽度，左对齐）===== */
 .tabs {
   display: flex;
-  gap: 0;
+  gap: 24px;
   margin-bottom: 18px;
   background: transparent;
   padding: 0;
@@ -86,7 +86,7 @@ body {
   border-bottom: 1px solid var(--rule-light);
 }
 .tab {
-  flex: 1;
+  flex: none;
   padding: 10px 4px;
   border: none;
   background: transparent;
