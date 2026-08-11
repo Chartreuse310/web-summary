@@ -214,7 +214,23 @@
       <button class="reader-back" id="readerBack" type="button">← 返回剪藏库</button>
       <div class="reader-title-row">
         <h1 class="reader-title" id="readerTitle"></h1>
-        <button class="btn-danger" id="readerDelete" type="button" hidden>删除</button>
+        <div class="reader-title-actions">
+          <button class="btn-secondary" id="readerEdit" type="button">编辑</button>
+          <button class="btn-primary reader-save-btn" id="readerSave" type="button" hidden>保存</button>
+          <button class="btn-secondary" id="readerCancel" type="button" hidden>取消</button>
+          <button class="btn-danger" id="readerDelete" type="button" hidden>删除</button>
+        </div>
+      </div>
+      <!-- 编辑工具栏（仅编辑模式可见）-->
+      <div class="reader-toolbar" id="readerToolbar" hidden>
+        <div class="toolbar-group">
+          <button type="button" class="fmt-btn" data-block="H1" title="一级标题">H1</button>
+          <button type="button" class="fmt-btn" data-block="H2" title="二级标题">H2</button>
+          <button type="button" class="fmt-btn" data-block="H3" title="三级标题">H3</button>
+          <button type="button" class="fmt-btn" data-block="H4" title="四级标题">H4</button>
+          <button type="button" class="fmt-btn" data-block="P" title="转为正文段落">正文</button>
+        </div>
+        <span class="toolbar-hint">将光标置于段落中，点击按钮转换标题级别</span>
       </div>
     </header>
 

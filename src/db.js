@@ -194,9 +194,9 @@ function getClipping(id) {
 }
 
 /**
- * 更新（目前主要改 tags / title / summary）
+ * 更新（支持 tags / title / summary / oneliner / contentHtml / contentText / outline）
  */
-function updateClipping(id, { title, summary, oneliner, tags } = {}) {
+function updateClipping(id, { title, summary, oneliner, tags, contentHtml, contentText, outline } = {}) {
   const sets = [];
   const params = { id };
   if (title !== undefined) {
@@ -214,6 +214,18 @@ function updateClipping(id, { title, summary, oneliner, tags } = {}) {
   if (tags !== undefined) {
     sets.push('tags = @tags');
     params.tags = JSON.stringify(tags);
+  }
+  if (contentHtml !== undefined) {
+    sets.push('content_html = @contentHtml');
+    params.contentHtml = contentHtml;
+  }
+  if (contentText !== undefined) {
+    sets.push('content_text = @contentText');
+    params.contentText = contentText;
+  }
+  if (outline !== undefined) {
+    sets.push('outline = @outline');
+    params.outline = JSON.stringify(outline);
   }
   if (sets.length === 0) return getClipping(id);
   db.prepare(`UPDATE clippings SET ${sets.join(', ')} WHERE id = @id`).run(params);

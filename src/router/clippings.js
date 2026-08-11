@@ -3,7 +3,7 @@
  *   POST   /api/clippings        创建
  *   GET    /api/clippings        列表（支持 q、tag、sort、limit、offset）
  *   GET    /api/clippings/:id    详情
- *   PUT    /api/clippings/:id    编辑（tags / title / summary）
+ *   PUT    /api/clippings/:id    编辑（tags / title / summary / oneliner / contentHtml / contentText / outline）
  *   DELETE /api/clippings/:id    删除
  */
 const express = require('express');
@@ -14,6 +14,7 @@ const {
   updateClipping,
   deleteClipping
 } = require('../db');
+const { sanitizeHtml } = require('../extract');
 
 const router = express.Router();
 
@@ -74,9 +75,26 @@ router.get('/:id', (req, res) => {
 // 编辑
 router.put('/:id', (req, res) => {
   const id = Number(req.params.id);
-  if (!getClipping(id)) return res.status(404).json({ error: '剪藏不存在' });
+  const existing = getClipping(id);
+  if (!existing) return res.status(404).json({ error: '剪藏不存在' });
   try {
-    const updated = updateClipping(id, req.body || {});
+    const body = req.body || {};
+
+    // 显式白名单字段构建 payload，避免未知字段注入
+    const payload = {};
+    if (body.title !== undefined) payload.title = body.title;
+    if (body.summary !== undefined) payload.summary = body.summary;
+    if (body.oneliner !== undefined) payload.oneliner = body.oneliner;
+    if (body.tags !== undefined) payload.tags = body.tags;
+    if (body.contentText !== undefined) payload.contentText = body.contentText;
+    if (body.outline !== undefined) payload.outline = body.outline;
+
+    // contentHtml：必须重新 sanitizeHtml 清洗（安全防线）
+    if (body.contentHtml !== undefined) {
+      payload.contentHtml = sanitizeHtml(body.contentHtml, existing.url);
+    }
+
+    const updated = updateClipping(id, payload);
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: `更新失败：${err.message}` });

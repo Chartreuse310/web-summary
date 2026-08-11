@@ -18,7 +18,9 @@
     currentResult: null, // 当前 summarize 结果，待保存
     trendMetric: 'tokens',
     trendData: [],
-    currentReaderClipping: null // 当前阅读视图打开的剪藏对象
+    currentReaderClipping: null, // 当前阅读视图打开的剪藏对象
+    isEditing: false,             // 是否处于编辑模式
+    editSnapshot: null            // 编辑前的原始数据快照（用于取消恢复）
   };
 
   // ============ Tab 切换 ============
@@ -572,10 +574,230 @@
     });
   }
 
+  // ============ 编辑模式 ============
+
+  /**
+   * 进入编辑模式
+   * 1. 快照原始数据供取消恢复
+   * 2. article / oneliner / summary 设为 contentEditable
+   * 3. 旧剪藏降级处理：纯文本包装为 <p>
+   * 4. 切换按钮 + 显示工具栏
+   */
+  function enterEditMode() {
+    const d = state.currentReaderClipping;
+    if (!d) return;
+
+    state.isEditing = true;
+
+    // 快照原始数据
+    state.editSnapshot = {
+      contentHtml: d.contentHtml,
+      oneliner: d.oneliner,
+      summary: d.summary,
+      onelinerBlockHidden: $('readerOnelinerBlock').hasAttribute('hidden')
+    };
+
+    const article = $('readerArticle');
+
+    // 旧剪藏降级处理：如果当前显示的是纯文本降级内容，转换为可编辑的 <p> 段落
+    const fallbackNotice = article.querySelector('.reader-fallback-notice');
+    if (fallbackNotice) {
+      const plaintext = article.querySelector('.reader-plaintext');
+      const text = plaintext ? plaintext.textContent : '';
+      const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim());
+      article.innerHTML = paragraphs.length
+        ? paragraphs.map((p) => '<p>' + escapeHtml(p.trim()) + '</p>').join('')
+        : '<p>（空内容）</p>';
+    }
+
+    // 启用 contentEditable
+    article.contentEditable = 'true';
+    article.classList.add('editing');
+    article.setAttribute('data-placeholder', '正文内容为空，点击此处开始编辑');
+
+    // 一句话总结：显示 block（即使为空）+ 可编辑
+    setHidden($('readerOnelinerBlock'), false);
+    const onelinerEl = $('readerOneliner');
+    onelinerEl.contentEditable = 'true';
+    onelinerEl.classList.add('editing');
+    onelinerEl.setAttribute('data-placeholder', '点击编辑一句话总结…');
+
+    // 摘要：可编辑
+    const summaryEl = $('readerSummary');
+    summaryEl.contentEditable = 'true';
+    summaryEl.classList.add('editing');
+    summaryEl.setAttribute('data-placeholder', '点击编辑摘要…');
+
+    // 切换按钮
+    setHidden($('readerEdit'), true);
+    setHidden($('readerSave'), false);
+    setHidden($('readerCancel'), false);
+    setHidden($('readerDelete'), true);
+    setHidden($('readerToolbar'), false);
+
+    // 聚焦到正文
+    article.focus();
+  }
+
+  /**
+   * 退出编辑模式（仅切换 UI 状态，不恢复数据）
+   */
+  function exitEditMode() {
+    state.isEditing = false;
+    state.editSnapshot = null;
+
+    const article = $('readerArticle');
+    article.contentEditable = 'false';
+    article.classList.remove('editing');
+    article.removeAttribute('data-placeholder');
+
+    const onelinerEl = $('readerOneliner');
+    onelinerEl.contentEditable = 'false';
+    onelinerEl.classList.remove('editing');
+    onelinerEl.removeAttribute('data-placeholder');
+
+    const summaryEl = $('readerSummary');
+    summaryEl.contentEditable = 'false';
+    summaryEl.classList.remove('editing');
+    summaryEl.removeAttribute('data-placeholder');
+
+    // 切换按钮
+    setHidden($('readerEdit'), false);
+    setHidden($('readerSave'), true);
+    setHidden($('readerCancel'), true);
+    setHidden($('readerDelete'), false);
+    setHidden($('readerToolbar'), true);
+  }
+
+  /**
+   * 将光标所在块级元素转换为指定标签（H1/H2/H3/H4/P）
+   */
+  function handleHeadingFormat(tag) {
+    document.execCommand('formatBlock', false, tag);
+    // 转换后重建 TOC
+    buildReaderToc(state.currentReaderClipping);
+  }
+
+  /**
+   * 从中栏 DOM 提取 outline 数组 [{level, text}]
+   * 与后端 extractOutline 逻辑一致
+   */
+  function extractOutlineFromDom() {
+    const article = $('readerArticle');
+    const headings = article.querySelectorAll('h1, h2, h3, h4');
+    const outline = [];
+    const seen = new Set();
+
+    headings.forEach((h) => {
+      const text = (h.textContent || '').trim();
+      if (!text || text.length > 80) return;
+      const level = h.tagName.toLowerCase();
+      const key = level + '|' + text;
+      if (seen.has(key)) return;
+      seen.add(key);
+      outline.push({ level, text });
+    });
+
+    return outline;
+  }
+
+  /**
+   * 保存编辑结果
+   * 收集 contentHtml / contentText / oneliner / summary / outline → PUT
+   */
+  async function handleReaderSave() {
+    const d = state.currentReaderClipping;
+    if (!d) return;
+
+    const article = $('readerArticle');
+    const saveBtn = $('readerSave');
+
+    const payload = {
+      contentHtml: article.innerHTML,
+      contentText: article.textContent.trim(),
+      oneliner: $('readerOneliner').textContent.trim(),
+      summary: $('readerSummary').textContent.trim(),
+      outline: extractOutlineFromDom()
+    };
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = '保存中…';
+
+    try {
+      const { ok, d: resp } = await api('/api/clippings/' + d.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!ok) throw new Error(resp.error || '保存失败');
+
+      // 用后端返回值更新 state（含 re-sanitized contentHtml）
+      state.currentReaderClipping = resp;
+
+      exitEditMode();
+
+      // 重新渲染正文（用后端 re-sanitize 后的 contentHtml）
+      renderReaderArticle(resp);
+      buildReaderToc(resp);
+
+      // 更新一句话总结显示
+      if (resp.oneliner) {
+        $('readerOneliner').textContent = resp.oneliner;
+        setHidden($('readerOnelinerBlock'), false);
+      } else {
+        setHidden($('readerOnelinerBlock'), true);
+      }
+
+      // 更新摘要显示
+      $('readerSummary').textContent = resp.summary;
+
+      // 刷新列表
+      loadLibrary();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '保存';
+    }
+  }
+
+  /**
+   * 取消编辑，恢复原始数据
+   */
+  function handleReaderCancel() {
+    const snap = state.editSnapshot;
+    const d = state.currentReaderClipping;
+    if (!snap || !d) {
+      exitEditMode();
+      return;
+    }
+
+    // 恢复正文
+    d.contentHtml = snap.contentHtml;
+    renderReaderArticle(d);
+
+    // 恢复一句话总结
+    d.oneliner = snap.oneliner;
+    $('readerOneliner').textContent = snap.oneliner || '';
+    setHidden($('readerOnelinerBlock'), snap.onelinerBlockHidden);
+
+    // 恢复摘要
+    d.summary = snap.summary;
+    $('readerSummary').textContent = snap.summary || '';
+
+    // 重建目录
+    buildReaderToc(d);
+
+    exitEditMode();
+  }
+
   /**
    * 关闭阅读页，返回剪藏库
    */
   function closeReader() {
+    if (state.isEditing) {
+      exitEditMode();
+    }
     setHidden($('readerView'), true);
     setHidden(document.querySelector('.container'), false);
     $('readerArticle').innerHTML = '';
@@ -827,10 +1049,27 @@
     $('readerBack').addEventListener('click', closeReader);
     $('readerDelete').addEventListener('click', handleReaderDelete);
 
-    // ESC 键关闭阅读页
+    // 阅读页：编辑模式
+    $('readerEdit').addEventListener('click', enterEditMode);
+    $('readerSave').addEventListener('click', handleReaderSave);
+    $('readerCancel').addEventListener('click', handleReaderCancel);
+
+    // 工具栏：标题转换（mousedown 保持焦点）
+    $('readerToolbar').querySelectorAll('.fmt-btn').forEach((btn) => {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        handleHeadingFormat(btn.dataset.block);
+      });
+    });
+
+    // ESC 键：编辑模式→取消编辑，非编辑→关闭阅读页
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !$('readerView').hidden) {
-        closeReader();
+        if (state.isEditing) {
+          handleReaderCancel();
+        } else {
+          closeReader();
+        }
       }
     });
 
