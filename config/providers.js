@@ -143,8 +143,93 @@ module.exports = {
           items: ['Intern-S2-Preview']
         }
       ]
+    },
+
+    // ===== DeepSeek 官方 =====
+    // 直连 DeepSeek 自有平台，价格低、无中间层。OpenAI 兼容。
+    {
+      id: 'deepseek',
+      name: 'DeepSeek 官方',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKeyEnv: 'DEEPSEEK_API_KEY',
+      models: [
+        { group: '常用', items: ['deepseek-chat', 'deepseek-reasoner'] }
+      ]
+    },
+
+    // ===== 硅基流动 SiliconFlow =====
+    // 国内主流聚合平台，一站汇聚 DeepSeek / Qwen / GLM 等开源与商用模型，
+    // 注册送额度，OpenAI 兼容，国内访问稳定。
+    {
+      id: 'siliconflow',
+      name: '硅基流动 SiliconFlow',
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      apiKeyEnv: 'SILICONFLOW_API_KEY',
+      models: [
+        // —— 常用（置顶）——
+        {
+          group: '常用',
+          items: ['deepseek-ai/DeepSeek-V3.1', 'Qwen/Qwen3-32B', 'THUDM/GLM-4-9B-Chat']
+        },
+        // —— DeepSeek 系列 ——
+        {
+          group: 'DeepSeek',
+          items: [
+            'deepseek-ai/DeepSeek-V3.1',
+            'deepseek-ai/DeepSeek-V3',
+            'deepseek-ai/DeepSeek-R1',
+            'deepseek-ai/DeepSeek-R1-0528',
+            'deepseek-ai/deepseek-vl2'
+          ]
+        },
+        // —— 通义千问 Qwen ——
+        {
+          group: 'Qwen',
+          items: [
+            'Qwen/Qwen3-235B-A22B',
+            'Qwen/Qwen3-32B',
+            'Qwen/Qwen3-30B-A3B',
+            'Qwen/Qwen2.5-72B-Instruct',
+            'Qwen/Qwen2.5-Max'
+          ]
+        },
+        // —— 智谱 GLM ——
+        {
+          group: 'GLM',
+          items: [
+            'THUDM/GLM-4-9B-Chat',
+            'THUDM/GLM-4-32B-0414',
+            'zai-org/GLM-4.5',
+            'zai-org/GLM-4.5-Air'
+          ]
+        },
+        // —— 其他热门开源 ——
+        {
+          group: '其他开源',
+          items: [
+            'meta-llama/Llama-3.3-70B-Instruct',
+            'meta-llama/Meta-Llama-3.1-405B-Instruct',
+            'mistralai/Mistral-7B-Instruct-v0.3',
+            'google/gemma-2-27b-it'
+          ]
+        }
+      ]
+    },
+
+    // ===== OpenAI 官方 =====
+    // 海外原生 GPT 系列。需海外网络与 Key。
+    {
+      id: 'openai',
+      name: 'OpenAI 官方',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKeyEnv: 'OPENAI_API_KEY',
+      models: [
+        { group: '常用', items: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini'] },
+        { group: 'GPT-4.1', items: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano'] },
+        { group: 'GPT-4o', items: ['gpt-4o', 'gpt-4o-mini'] },
+        { group: 'o 系列', items: ['o3-mini', 'o4-mini'] }
+      ]
     }
-    // 未来要加 OpenAI / DeepSeek 官方等，照此格式新增即可
 
   ]
 };

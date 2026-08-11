@@ -10,6 +10,8 @@
  *
  * 数据来源：各模型官方公开价格（截至 2026-08），仅供估算参考。
  *   - paratera 实际计费以其账户后台为准
+ *   - DeepSeek / 硅基流动 / OpenAI 官方价按各自官网公开价
+ *   - OpenAI 美元价按汇率约 7.2 折算为人民币估算
  *   - 想改价格直接编辑这里的数值即可
  *   - 未知价格填 null，UI 会显示「价格未知，仅显示 Token」
  *
@@ -100,5 +102,42 @@ module.exports = {
   'GLM-X-F':      null,
   'GLM-Z1-AirX':  null,
   'GLM-Z1-Air':   null,
-  'GLM-Z1-Flash': null
+  'GLM-Z1-Flash': null,
+
+  // ===== DeepSeek 官方（OpenAI 兼容，元/百万 token）=====
+  'deepseek-chat':         { input: 2, output: 8, cachedInput: 0.5 },
+  'deepseek-reasoner':     { input: 4, output: 16, cachedInput: 1 },
+
+  // ===== 硅基流动 SiliconFlow（官方公开价参考；部分开源模型免费）=====
+  // DeepSeek
+  'deepseek-ai/DeepSeek-V3.1':     { input: 2, output: 8 },
+  'deepseek-ai/DeepSeek-V3':       { input: 2, output: 8 },
+  'deepseek-ai/DeepSeek-R1':       { input: 4, output: 16 },
+  'deepseek-ai/DeepSeek-R1-0528':  { input: 4, output: 16 },
+  'deepseek-ai/deepseek-vl2':      null,
+  // Qwen
+  'Qwen/Qwen3-235B-A22B':       { input: 4, output: 12 },
+  'Qwen/Qwen3-32B':             { input: 1, output: 4 },
+  'Qwen/Qwen3-30B-A3B':         { input: 1, output: 4 },
+  'Qwen/Qwen2.5-72B-Instruct':  { input: 4, output: 12 },
+  'Qwen/Qwen2.5-Max':           { input: 4, output: 12 },
+  // GLM
+  'THUDM/GLM-4-9B-Chat':   { input: 0, output: 0 },
+  'THUDM/GLM-4-32B-0414':  { input: 1, output: 4 },
+  'zai-org/GLM-4.5':       { input: 5, output: 5 },
+  'zai-org/GLM-4.5-Air':   { input: 1, output: 1 },
+  // 其他开源
+  'meta-llama/Llama-3.3-70B-Instruct':       null,
+  'meta-llama/Meta-Llama-3.1-405B-Instruct': null,
+  'mistralai/Mistral-7B-Instruct-v0.3':      null,
+  'google/gemma-2-27b-it':                   null,
+
+  // ===== OpenAI 官方（美元官方价 → 换算为人民币估算，汇率约 7.2）=====
+  'gpt-4o':         { input: 36, output: 144 },       // $5 / $20 per M
+  'gpt-4o-mini':    { input: 2.2, output: 8.6 },      // $0.30 / $1.20
+  'gpt-4.1':        { input: 14, output: 57 },         // $2 / $8
+  'gpt-4.1-mini':  { input: 2.2, output: 8.6 },       // $0.40 / $1.60
+  'gpt-4.1-nano':  { input: 0.7, output: 2.9 },        // $0.10 / $0.40
+  'o3-mini':        { input: 7.9, output: 31.7 },      // $1.10 / $4.40
+  'o4-mini':        { input: 7.9, output: 31.7 }
 };

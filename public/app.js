@@ -56,9 +56,16 @@
   }
 
   // ============ 工具函数 ============
+  // 费用在 DB 里统一存人民币元（pricing.js 全按元计价，OpenAI 已按汇率折成元）。
+  // 英文界面按 7.2 汇率折回美元显示，与 pricing.js 的折算口径一致。
+  const USD_RATE = 7.2;
   function fmtCost(yuan) {
     if (yuan == null) return t('fmtCost.unknown');
-    if (yuan === 0) return '¥0';
+    if (yuan === 0) return I18n.getLang() === 'en' ? '$0' : '¥0';
+    if (I18n.getLang() === 'en') {
+      const usd = yuan / USD_RATE;
+      return '$' + (usd < 0.01 ? usd.toFixed(6) : usd.toFixed(4));
+    }
     return '¥' + (yuan < 0.01 ? yuan.toFixed(6) : yuan.toFixed(4));
   }
   function fmtNum(n) {
@@ -605,7 +612,7 @@
     renderReaderTags(d);
 
     // ---- 右栏：模型与用量 ----
-    const costText = d.cost ? fmtCost(d.cost) : '¥0';
+    const costText = d.cost ? fmtCost(d.cost) : fmtCost(0);
     $('readerUsage').innerHTML =
       '<div>' + escapeHtml(t('meta.model')) + '<b>' + escapeHtml(d.model) + '</b></div>' +
       '<div>' + escapeHtml(t('usage.input')) + ' <b>' + fmtNum(d.promptTokens) + '</b> · ' + escapeHtml(t('usage.output')) + ' <b>' + fmtNum(d.completionTokens) + '</b> · ' + escapeHtml(t('usage.total')) + ' <b>' + fmtNum(d.totalTokens) + '</b></div>' +
@@ -1475,7 +1482,7 @@
         escapeHtml(t('meta.savedAt') + fmtDate(d.savedAt))
       ].filter(Boolean);
       $('readerMeta').innerHTML = metaParts.map((s) => '<span>' + s + '</span>').join('');
-      const costText = d.cost ? fmtCost(d.cost) : '¥0';
+      const costText = d.cost ? fmtCost(d.cost) : fmtCost(0);
       $('readerUsage').innerHTML =
         '<div>' + escapeHtml(t('meta.model')) + '<b>' + escapeHtml(d.model) + '</b></div>' +
         '<div>' + escapeHtml(t('usage.input')) + ' <b>' + fmtNum(d.promptTokens) + '</b> · ' + escapeHtml(t('usage.output')) + ' <b>' + fmtNum(d.completionTokens) + '</b> · ' + escapeHtml(t('usage.total')) + ' <b>' + fmtNum(d.totalTokens) + '</b></div>' +
