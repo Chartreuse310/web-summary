@@ -393,13 +393,15 @@
 
     // ---- 头部 ----
     $('readerTitle').textContent = d.title;
+
+    // ---- 右栏：文章信息（平台/作者/发布/收藏）----
     const metaParts = [
       d.platform && escapeHtml(d.platform),
       d.author && escapeHtml('作者：' + d.author),
       d.publishedAt && escapeHtml('发布：' + fmtDate(d.publishedAt)),
       escapeHtml('收藏：' + fmtDate(d.savedAt))
     ].filter(Boolean);
-    $('readerMeta').innerHTML = metaParts.join(' · ');
+    $('readerMeta').innerHTML = metaParts.map((s) => '<span>' + s + '</span>').join('');
 
     // 删除按钮
     setHidden($('readerDelete'), false);
