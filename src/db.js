@@ -28,7 +28,7 @@ db.exec(`
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     url               TEXT NOT NULL,
     title             TEXT NOT NULL,
-    author            TEXT,
+    author            TEXT,        -- JSON 字符串数组
     platform          TEXT,
     published_at      TEXT,
     outline           TEXT,        -- JSON 数组 [{level,text}]
@@ -65,6 +65,18 @@ db.exec(`
   }
 }
 
+// ===== 幻移：author 从单字符串迁移为 JSON 数组（幂等，可反复重启）=====
+// 统一走 normalizeAuthors：兼容旧裸字符串、JSON 数组、含纯空格的合著等所有形态。
+// 只在规范化结果与当前存储不一致时写回，减少无谓写与 WAL 膨胀。
+{
+  const rows = db.prepare("SELECT id, author FROM clippings WHERE author IS NOT NULL").all();
+  const upd = db.prepare("UPDATE clippings SET author = ? WHERE id = ?");
+  for (const r of rows) {
+    const canonical = JSON.stringify(normalizeAuthors(r.author));
+    if (r.author !== canonical) upd.run(canonical, r.id);
+  }
+}
+
 // ===== 回填：给 oneliner 为空的旧数据补一句话总结 =====
 // 从 summary 的首行提取（prompt 让首行就是核心概括），保证历史数据体验一致。
 {
@@ -85,7 +97,7 @@ function rowToObj(row) {
     id: row.id,
     url: row.url,
     title: row.title,
-    author: row.author,
+    author: normalizeAuthors(row.author),
     platform: row.platform,
     publishedAt: row.published_at,
     outline: safeParse(row.outline, []),
@@ -112,6 +124,59 @@ function safeParse(s, fallback) {
   }
 }
 
+/**
+ * 把任意形态的 author 值归一化成字符串数组（去空、去重）。
+ * 入参可以是：
+ *   - 数组（来自 extract/PUT 的标准形态）
+ *   - JSON 字符串数组（DB 列里的标准存储）
+ *   - 裸字符串（旧数据，如 "张三" / "张三、李四" / "张三 李四"）
+ *   - JSON 标量（"123" / "null" / "\"张三\""）
+ *   - null/undefined/空字符串 → []
+ * 统一按分隔符（逗号/顿号/分号/&/and/和/与/纯空格）拆分，trim 后去空。
+ * 这是 API 出口的唯一护栏：保证 items[].author 永远是字符串数组。
+ */
+function normalizeAuthors(raw) {
+  // 先把入参规整到一个"字符串候选列表"
+  let list;
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else if (typeof raw === 'string') {
+    // 优先按 JSON 解析（DB 标准存储是 JSON 数组字符串）
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { /* 裸字符串，落到下面 */ }
+    if (Array.isArray(parsed)) {
+      list = parsed;
+    } else if (parsed === null || parsed === undefined) {
+      return [];
+    } else if (typeof parsed === 'string') {
+      list = [parsed];
+    } else {
+      list = [String(parsed)];
+    }
+  } else if (raw === null || raw === undefined) {
+    return [];
+  } else {
+    list = [String(raw)];
+  }
+  // 拆分 + trim + 去空 + 去重（保留顺序）
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    if (item === null || item === undefined) continue;
+    const s = typeof item === 'string' ? item : String(item);
+    // 单个值内部可能仍含分隔符（如迁移前的 "张三 李四"），再拆一次
+    const parts = s.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+|\s+/i);
+    for (const p of parts) {
+      const name = p.trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        out.push(name);
+      }
+    }
+  }
+  return out;
+}
+
 // ===== CRUD =====
 
 /**
@@ -132,7 +197,7 @@ function insertClipping(d) {
   const result = stmt.run({
     url: d.url,
     title: d.title,
-    author: d.author || null,
+    author: JSON.stringify(normalizeAuthors(d.author)),
     platform: d.platform || null,
     publishedAt: d.publishedAt || null,
     outline: JSON.stringify(d.outline || []),
@@ -202,9 +267,9 @@ function getClipping(id) {
 }
 
 /**
- * 更新（支持 tags / title / summary / oneliner / contentHtml / contentText / outline）
+ * 更新（支持 tags / author / title / summary / oneliner / contentHtml / contentText / outline）
  */
-function updateClipping(id, { title, summary, oneliner, tags, contentHtml, contentText, outline } = {}) {
+function updateClipping(id, { title, summary, oneliner, tags, author, contentHtml, contentText, outline } = {}) {
   const sets = [];
   const params = { id };
   if (title !== undefined) {
@@ -234,6 +299,10 @@ function updateClipping(id, { title, summary, oneliner, tags, contentHtml, conte
   if (outline !== undefined) {
     sets.push('outline = @outline');
     params.outline = JSON.stringify(outline);
+  }
+  if (author !== undefined) {
+    sets.push('author = @author');
+    params.author = JSON.stringify(normalizeAuthors(author));
   }
   if (sets.length === 0) return getClipping(id);
   db.prepare(`UPDATE clippings SET ${sets.join(', ')} WHERE id = @id`).run(params);
@@ -277,13 +346,23 @@ function getStats() {
     )
     .all();
 
-  // 按作者分布（供剪藏库右侧排行）
-  const byAuthor = db
-    .prepare(
-      `SELECT COALESCE(author,'未知') AS author, COUNT(*) AS count
-       FROM clippings GROUP BY author ORDER BY count DESC LIMIT 10`
-    )
-    .all();
+  // 按作者分布（从 JSON 数组展开，每个作者独立计数 + 累计 token/费用）
+  const allAuthorRows = db.prepare('SELECT author, total_tokens, cost FROM clippings').all();
+  const authorStat = {};
+  for (const row of allAuthorRows) {
+    const names = normalizeAuthors(row.author);
+    const keys = names.length ? names : ['未知'];
+    for (const k of keys) {
+      if (!authorStat[k]) authorStat[k] = { count: 0, totalTokens: 0, totalCost: 0 };
+      authorStat[k].count += 1;
+      authorStat[k].totalTokens += row.total_tokens || 0;
+      authorStat[k].totalCost += row.cost || 0;
+    }
+  }
+  const byAuthor = Object.entries(authorStat)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([author, v]) => ({ author, count: v.count, totalTokens: v.totalTokens, totalCost: v.totalCost }));
 
   // 所有 tag 频次（从 JSON 字段解析）
   const allTags = db.prepare('SELECT tags FROM clippings').all();

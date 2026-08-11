@@ -32,6 +32,36 @@ function validateUrl(raw) {
 }
 
 /**
+ * 按常见分隔符拆分作者名并加入 set（去重）
+ */
+function splitAuthors(raw, set) {
+  const parts = raw.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+/i);
+  for (const p of parts) {
+    const name = p.trim();
+    if (name) set.add(name);
+  }
+}
+
+/**
+ * 递归收集 JSON-LD 中的 author 字段（支持 @graph 嵌套）
+ */
+function collectJsonLdAuthors(data, set) {
+  if (!data) return;
+  const arr = Array.isArray(data) ? data : [data];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    if (item.author) {
+      const authors = Array.isArray(item.author) ? item.author : [item.author];
+      for (const a of authors) {
+        const name = typeof a === 'string' ? a : a?.name;
+        if (name) splitAuthors(String(name), set);
+      }
+    }
+    if (item['@graph']) collectJsonLdAuthors(item['@graph'], set);
+  }
+}
+
+/**
  * 从 document 提取元数据：作者 / 平台 / 发布时间
  * 优先级：Open Graph / article:* → 常见 meta → 域名/时间标签回退
  */
@@ -41,14 +71,23 @@ function extractMetadata(document, docUrl) {
     return el?.getAttribute('content')?.trim() || null;
   };
 
-  // 作者
-  const author =
-    meta('meta[property="article:author"]') ||
-    meta('meta[name="article:author"]') ||
-    meta('meta[property="og:article:author"]') ||
-    meta('meta[name="author"]') ||
-    meta('meta[name="twitter:creator"]') ||
-    null;
+  // 作者（多源合并 + 分隔符拆分，返回去重数组）
+  const authorSet = new Set();
+  // 1. 收集所有 author 相关 meta 标签（article:author 可能有多个）
+  document.querySelectorAll(
+    'meta[property="article:author"], meta[name="article:author"], ' +
+    'meta[property="og:article:author"], meta[name="author"], meta[name="twitter:creator"]'
+  ).forEach((el) => {
+    const v = el.getAttribute('content')?.trim();
+    if (v) splitAuthors(v, authorSet);
+  });
+  // 2. JSON-LD 结构化数据（最可靠的多作者来源）
+  document.querySelectorAll('script[type="application/ld+json"]').forEach((s) => {
+    try {
+      collectJsonLdAuthors(JSON.parse(s.textContent || ''), authorSet);
+    } catch { /* 忽略非法 JSON-LD */ }
+  });
+  const author = [...authorSet];
 
   // 平台（站点名）
   let platform =

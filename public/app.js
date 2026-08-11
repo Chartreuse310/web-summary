@@ -12,6 +12,16 @@
   const $ = (id) => document.getElementById(id);
   const api = (p, opt) => fetch(p, opt).then((r) => r.json().then((d) => ({ ok: r.ok, d })));
 
+  // 把任意形态的 author 归一化成「顿号分隔的字符串」用于展示。
+  // 后端按约定返回数组，但若遇到旧数据/异常写入返回裸字符串，这里兜底防止 .join 抛错崩整页。
+  const fmtAuthors = (a) => {
+    if (Array.isArray(a)) {
+      return a.map((x) => (x == null ? '' : String(x))).filter(Boolean).join('、');
+    }
+    if (typeof a === 'string') return a.trim();
+    return '';
+  };
+
   // ============ 全局状态 ============
   const state = {
     providers: [],
@@ -181,7 +191,8 @@
 
     // 元数据
     const metaParts = [];
-    if (d.author) metaParts.push(`作者：${d.author}`);
+    const authorText = fmtAuthors(d.author);
+    if (authorText) metaParts.push(`作者：${authorText}`);
     if (d.platform) metaParts.push(`平台：${d.platform}`);
     if (d.publishedAt) metaParts.push(`发布：${fmtDate(d.publishedAt)}`);
     metaParts.push(`模型：${d.model}`);
@@ -377,7 +388,7 @@
       .map((it, i) => {
         const meta = [
           it.platform && escapeHtml(it.platform),
-          it.author && escapeHtml(it.author),
+          escapeHtml(fmtAuthors(it.author)),
           it.publishedAt && fmtDate(it.publishedAt),
           fmtDate(it.savedAt) && `收藏于 ${fmtDate(it.savedAt)}`
         ].filter(Boolean).join(' · ');
@@ -551,9 +562,10 @@
     $('readerTitle').textContent = d.title;
 
     // ---- 右栏：文章信息（平台/作者/发布/收藏）----
+    const authorText = fmtAuthors(d.author);
     const metaParts = [
       d.platform && escapeHtml(d.platform),
-      d.author && escapeHtml('作者：' + d.author),
+      authorText && escapeHtml('作者：' + authorText),
       d.publishedAt && escapeHtml('发布：' + fmtDate(d.publishedAt)),
       escapeHtml('收藏：' + fmtDate(d.savedAt))
     ].filter(Boolean);
@@ -1063,7 +1075,7 @@
       .map((it, i) => {
         const meta = [
           it.platform && escapeHtml(it.platform),
-          it.author && escapeHtml(it.author),
+          escapeHtml(fmtAuthors(it.author)),
           fmtDate(it.savedAt) && ('收藏于 ' + fmtDate(it.savedAt))
         ].filter(Boolean).join(' · ');
         const num = String(i + 1).padStart(2, '0');

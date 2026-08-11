@@ -3,7 +3,7 @@
  *   POST   /api/clippings        创建
  *   GET    /api/clippings        列表（支持 q、tag、sort、limit、offset）
  *   GET    /api/clippings/:id    详情
- *   PUT    /api/clippings/:id    编辑（tags / title / summary / oneliner / contentHtml / contentText / outline）
+ *   PUT    /api/clippings/:id    编辑（tags / author / title / summary / oneliner / contentHtml / contentText / outline）
  *   DELETE /api/clippings/:id    删除
  */
 const express = require('express');
@@ -90,6 +90,7 @@ router.put('/:id', (req, res) => {
     if (body.tags !== undefined) payload.tags = body.tags;
     if (body.contentText !== undefined) payload.contentText = body.contentText;
     if (body.outline !== undefined) payload.outline = body.outline;
+    if (body.author !== undefined) payload.author = body.author;
 
     // contentHtml：必须重新 sanitizeHtml 清洗（安全防线）
     if (body.contentHtml !== undefined) {
