@@ -55,13 +55,22 @@ body {
 }
 
 .container {
-  max-width: 760px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 28px 20px 48px;
+  padding: 28px 32px 48px;
 }
 
 /* ===== Header ===== */
-.header { text-align: center; margin-bottom: 22px; }
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 22px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.header-brand { min-width: 0; }
+.header-add-btn { width: auto !important; margin-top: 0 !important; padding: 10px 22px !important; flex-shrink: 0; }
 .title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--ink); }
 .subtitle { color: var(--ink-4); font-size: 12px; margin-top: 6px; letter-spacing: 0.04em; }
 
@@ -945,3 +954,153 @@ body {
 /* ===== 首页：快捷入口 ===== */
 .home-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .home-actions .btn-secondary { flex: 1; min-width: 92px; text-align: center; }
+
+/* ================================================== */
+/* ===== 全宽布局：首页网格 =====                      */
+/* ================================================== */
+
+/* 顶部行：三计数 + 热力图 + 一句话 */
+.home-top-grid {
+  display: grid;
+  grid-template-columns: 190px 1fr 280px;
+  gap: 14px;
+  margin-bottom: 14px;
+  align-items: stretch;
+}
+.home-stats-col { display: flex; flex-direction: column; gap: 10px; }
+.home-stats-col .home-stat { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.home-heatmap-col { display: flex; flex-direction: column; }
+.home-oneliner-col { display: flex; flex-direction: column; }
+.home-oneliner-col .oneliner-box { flex: 1; display: flex; align-items: center; }
+
+/* 下方：最近剪藏 + 标签云 */
+.home-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 14px;
+  align-items: start;
+}
+.home-recent-col { min-width: 0; }
+.home-tagcloud-col { max-height: 420px; overflow-y: auto; }
+
+/* 标签云：频次映射字号 */
+.tag-cloud-freq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+  line-height: 1.8;
+}
+.tag-cloud-freq .freq-tag {
+  color: var(--forest);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s;
+  font-family: var(--font-ui);
+}
+.tag-cloud-freq .freq-tag:hover { color: var(--forest-2); text-decoration: underline; }
+
+/* ================================================== */
+/* ===== 全宽布局：剪藏库三栏 =====                    */
+/* ================================================== */
+.library-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr 240px;
+  gap: 14px;
+  align-items: start;
+}
+.library-sidebar, .library-rails { position: sticky; top: 10px; }
+.library-main { min-width: 0; }
+.sidebar-card, .rails-card { padding: 14px; }
+
+/* 时间聚类 */
+.time-clusters { display: flex; flex-direction: column; gap: 12px; }
+.cluster-group-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.cluster-items { display: flex; flex-direction: column; gap: 2px; }
+.cluster-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ink-3);
+  transition: background 0.15s, color 0.15s;
+}
+.cluster-item:hover { background: var(--primary-light); color: var(--primary); }
+.cluster-item.active { background: var(--forest); color: #fff; }
+.cluster-item .cluster-count { font-variant-numeric: tabular-nums; opacity: 0.7; }
+.cluster-item.active .cluster-count { opacity: 0.9; }
+
+/* 时间筛选徽章 */
+.time-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 5px 10px;
+  background: var(--warm-light);
+  border: 1px solid var(--warm);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.time-filter-badge .clear-time { cursor: pointer; color: var(--warm); font-weight: 700; }
+.time-filter-badge .clear-time:hover { color: var(--red); }
+
+/* 排行列表 */
+.rank-list { display: flex; flex-direction: column; gap: 2px; }
+.rank-list .rank-row-mini {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ink-3);
+  transition: background 0.15s, color 0.15s;
+}
+.rank-list .rank-row-mini:hover { background: var(--primary-light); color: var(--primary); }
+.rank-list .rank-row-mini .rname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
+.rank-list .rank-row-mini .rcount { font-variant-numeric: tabular-nums; opacity: 0.7; flex-shrink: 0; }
+
+/* ================================================== */
+/* ===== 添加剪藏浮窗（加宽）=====                     */
+/* ================================================== */
+.summarize-modal .modal-body { max-width: 720px; }
+.summarize-modal-body { padding: 24px 28px; }
+.summarize-modal-body .input-card { margin-bottom: 12px; }
+
+/* ================================================== */
+/* ===== 设置页：统计分布网格 =====                    */
+/* ================================================== */
+.settings-dist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+/* ===== 响应式：中窄屏堆叠 ===== */
+@media (max-width: 1100px) {
+  .home-top-grid { grid-template-columns: 1fr; }
+  .home-bottom-grid { grid-template-columns: 1fr; }
+  .library-layout { grid-template-columns: 1fr; }
+  .library-sidebar, .library-rails { position: static; }
+  .settings-dist-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .container { padding: 20px 16px 40px; }
+  .header { flex-direction: column; align-items: flex-start; }
+  .home-stats-col { flex-direction: row; }
+  .home-stats-col .home-stat { flex: 1; }
+}

@@ -20,7 +20,8 @@
     trendData: [],
     currentReaderClipping: null, // 当前阅读视图打开的剪藏对象
     isEditing: false,             // 是否处于编辑模式
-    editSnapshot: null            // 编辑前的原始数据快照（用于取消恢复）
+    editSnapshot: null,           // 编辑前的原始数据快照（用于取消恢复）
+    timeFilter: null              // 剪藏库时间聚类筛选 { from, to, label, grp, key }
   };
 
   // ============ Tab 切换 ============
@@ -34,8 +35,7 @@
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + name));
     if (name === 'home') loadHome();
     if (name === 'library') loadLibrary();
-    if (name === 'stats') loadStats();
-    if (name === 'settings') renderProviderList();
+    if (name === 'settings') { renderProviderList(); loadStats(); }
   }
 
   // ============ 工具函数 ============
@@ -295,7 +295,14 @@
       });
       if (!ok) throw new Error(resp.error || '保存失败');
       saveBtn.textContent = '已保存';
-      setTimeout(() => { saveBtn.textContent = '保存到剪藏库'; saveBtn.disabled = false; }, 1500);
+      setTimeout(() => {
+        saveBtn.textContent = '保存到剪藏库';
+        saveBtn.disabled = false;
+        closeSummarizeModal();
+        // 刷新首页计数 / 剪藏库（若当前停留）
+        loadHome();
+        if ($('panel-library').classList.contains('active')) loadLibrary();
+      }, 1000);
     } catch (err) {
       alert(err.message);
       saveBtn.textContent = '保存到剪藏库';
@@ -316,6 +323,23 @@
     setHidden($('resultCard'), true);
   }
 
+  // ===== 添加剪藏浮窗开关 =====
+  function openSummarizeModal() {
+    // 重置为初始状态
+    setHidden($('resultCard'), true);
+    setHidden($('loadingCard'), true);
+    setHidden($('errorCard'), true);
+    urlInput.value = '';
+    saveBtn.textContent = '保存到剪藏库';
+    saveBtn.disabled = true;
+    refreshProviderSelect();
+    setHidden($('summarizeModal'), false);
+    setTimeout(() => urlInput.focus(), 50);
+  }
+  function closeSummarizeModal() {
+    setHidden($('summarizeModal'), true);
+  }
+
   // ============ 剪藏库 Tab ============
   const libraryList = $('libraryList');
   const searchInput = $('searchInput');
@@ -327,10 +351,20 @@
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (tagFilter.value) params.set('tag', tagFilter.value);
     if (sortBy.value) params.set('sort', sortBy.value);
-    const { ok, d } = await api('/api/clippings?' + params.toString());
-    if (!ok) { libraryList.innerHTML = '<p class="empty-hint">加载失败</p>'; return; }
-    renderLibrary(d.items);
+    if (state.timeFilter) {
+      params.set('from', state.timeFilter.from);
+      params.set('to', state.timeFilter.to);
+    }
+    const [listRes, statsRes, clustersRes] = await Promise.all([
+      api('/api/clippings?' + params.toString()),
+      api('/api/stats'),
+      api('/api/stats/clusters')
+    ]);
+    if (!listRes.ok) { libraryList.innerHTML = '<p class="empty-hint">加载失败</p>'; return; }
+    renderLibrary(listRes.d.items);
     refreshTagFilter();
+    if (statsRes.ok) renderLibraryRails(statsRes.d);
+    if (clustersRes.ok) renderTimeClusters(clustersRes.d);
   }
 
   function renderLibrary(items) {
@@ -387,6 +421,118 @@
       tagFilter.appendChild(new Option(`${tag} (${count})`, tag));
     });
     if (cur) tagFilter.value = cur;
+  }
+
+  // ===== 时间聚类渲染 + 筛选（剪藏库左栏）=====
+
+  function renderTimeClusters(clusters) {
+    const wrap = $('timeClusters');
+    const groups = [
+      { grp: '按年', title: '按年', items: clusters.byYear, fmt: (k) => k + ' 年' },
+      { grp: '按月', title: '按月', items: clusters.byMonth, fmt: (k) => k },
+      { grp: '按周', title: '按周', items: clusters.byWeek, fmt: (k) => fmtWeekLabel(k) },
+      { grp: '按日', title: '按日', items: clusters.byDay, fmt: (k) => k.slice(5) }
+    ];
+    wrap.innerHTML = groups
+      .map((g) => {
+        if (!g.items || !g.items.length) return '';
+        const itemsHtml = g.items
+          .slice(0, 12)
+          .map((it) => {
+            const active = state.timeFilter && state.timeFilter.grp === g.grp && state.timeFilter.key === it.key ? ' active' : '';
+            return '<div class="cluster-item' + active + '" data-grp="' + g.grp + '" data-key="' + escapeHtml(it.key) + '">' +
+              '<span>' + escapeHtml(g.fmt(it.key)) + '</span>' +
+              '<span class="cluster-count">' + it.count + '</span></div>';
+          })
+          .join('');
+        return '<div><div class="cluster-group-title">' + g.title + '</div><div class="cluster-items">' + itemsHtml + '</div></div>';
+      })
+      .join('');
+
+    wrap.querySelectorAll('.cluster-item').forEach((el) => {
+      el.addEventListener('click', () => applyTimeFilter(el.dataset.grp, el.dataset.key));
+    });
+  }
+
+  /** 周 key（周一日期 YYYY-MM-DD）→ "MM-DD ~ MM-DD" 友好标签 */
+  function fmtWeekLabel(key) {
+    const start = new Date(key + 'T00:00:00');
+    const end = new Date(start.getTime() + 6 * 86400000);
+    return pad2(start.getMonth() + 1) + '-' + pad2(start.getDate()) + ' ~ ' + pad2(end.getMonth() + 1) + '-' + pad2(end.getDate());
+  }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  function applyTimeFilter(grp, key) {
+    let from, to, label;
+    if (grp === '按年') {
+      from = key + '-01-01';
+      to = (Number(key) + 1) + '-01-01';
+      label = key + ' 年';
+    } else if (grp === '按月') {
+      const [y, m] = key.split('-');
+      const ny = Number(y), nm = Number(m);
+      from = key + '-01';
+      const nextM = nm === 12 ? (ny + 1) + '-01' : ny + '-' + pad2(nm + 1);
+      to = nextM + '-01';
+      label = key;
+    } else if (grp === '按周') {
+      from = key;
+      const end = new Date(new Date(key + 'T00:00:00').getTime() + 7 * 86400000);
+      to = end.toISOString().slice(0, 10);
+      label = fmtWeekLabel(key);
+    } else {
+      // 按日
+      from = key;
+      const end = new Date(new Date(key + 'T00:00:00').getTime() + 86400000);
+      to = end.toISOString().slice(0, 10);
+      label = key;
+    }
+
+    state.timeFilter = { from, to, label, grp, key };
+
+    const badge = $('timeFilterBadge');
+    badge.innerHTML = '时间筛选：' + escapeHtml(label) + ' <span class="clear-time" title="清除筛选">×</span>';
+    setHidden(badge, false);
+    badge.querySelector('.clear-time').addEventListener('click', clearTimeFilter);
+
+    document.querySelectorAll('.cluster-item').forEach((el) => {
+      el.classList.toggle('active', el.dataset.grp === grp && el.dataset.key === key);
+    });
+    loadLibrary();
+  }
+
+  function clearTimeFilter() {
+    state.timeFilter = null;
+    setHidden($('timeFilterBadge'), true);
+    document.querySelectorAll('.cluster-item').forEach((el) => el.classList.remove('active'));
+    loadLibrary();
+  }
+
+  // ===== 剪藏库右栏：标签 / 作者排行 =====
+
+  function renderLibraryRails(stats) {
+    const tags = (stats.topTags || []).slice(0, 12);
+    $('libTagRank').innerHTML = tags.length
+      ? tags.map((t) => '<div class="rank-row-mini" data-tag="' + escapeHtml(t.tag) + '" title="点击按此标签筛选"><span class="rname">' + escapeHtml(t.tag) + '</span><span class="rcount">' + t.count + '</span></div>').join('')
+      : '<p class="empty-hint">暂无标签</p>';
+
+    const authors = (stats.byAuthor || []).slice(0, 12);
+    $('libAuthorRank').innerHTML = authors.length
+      ? authors.map((a) => '<div class="rank-row-mini" data-author="' + escapeHtml(a.author) + '" title="点击搜索该作者"><span class="rname">' + escapeHtml(a.author) + '</span><span class="rcount">' + a.count + '</span></div>').join('')
+      : '<p class="empty-hint">暂无作者</p>';
+
+    $('libTagRank').querySelectorAll('.rank-row-mini').forEach((el) => {
+      el.addEventListener('click', () => {
+        tagFilter.value = el.dataset.tag;
+        loadLibrary();
+      });
+    });
+    $('libAuthorRank').querySelectorAll('.rank-row-mini').forEach((el) => {
+      el.addEventListener('click', () => {
+        searchInput.value = el.dataset.author;
+        loadLibrary();
+      });
+    });
   }
 
   // ============ 阅读页（三栏视图）============
@@ -838,6 +984,7 @@
       return;
     }
     renderHomeStats(stats);
+    renderHomeTagCloud(stats.topTags || []);
     renderHomeOneliner(trend, recent.items || []);
     renderHomeRecent(recent.items || []);
     renderHeatmap(trend);
@@ -847,6 +994,32 @@
     $('homeCount').textContent = fmtNum(stats.count);
     $('homeTags').textContent = fmtNum(stats.distinctTags ?? 0);
     $('homeTokens').textContent = fmtNum(stats.totalTokens);
+  }
+
+  /** 标签云：频次越高字号越大（12px ~ 26px，5 级映射），点击跳转剪藏库筛选 */
+  function renderHomeTagCloud(tags) {
+    const wrap = $('homeTagCloud');
+    if (!tags || !tags.length) {
+      wrap.innerHTML = '<p class="empty-hint">暂无标签</p>';
+      return;
+    }
+    const counts = tags.map((t) => t.count);
+    const max = Math.max(...counts);
+    const min = Math.min(...counts);
+    wrap.innerHTML = tags
+      .map((t) => {
+        const ratio = max === min ? 0.5 : (t.count - min) / (max - min);
+        const size = (12 + ratio * 14).toFixed(1);
+        return '<span class="freq-tag" style="font-size:' + size + 'px" data-tag="' + escapeHtml(t.tag) + '" title="' + t.count + ' 篇">' + escapeHtml(t.tag) + '</span>';
+      })
+      .join('');
+    wrap.querySelectorAll('.freq-tag').forEach((el) => {
+      el.addEventListener('click', () => {
+        switchTab('library');
+        tagFilter.value = el.dataset.tag;
+        loadLibrary();
+      });
+    });
   }
 
   // 智能聚合「一句话总结近期在看」（零 LLM，纯前端模板生成）
@@ -955,17 +1128,8 @@
     $('byModel').innerHTML = renderDist(stats.byModel, 'totalTokens', 'count');
     // 平台分布
     $('byPlatform').innerHTML = renderDist(stats.byPlatform, 'count', 'count');
-    // 标签云
-    $('topTags').innerHTML = (stats.topTags || [])
-      .map(({ tag, count }) => `<span class="cloud-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)} · ${count}</span>`)
-      .join('') || '<p class="empty-hint">暂无标签</p>';
-    $('topTags').querySelectorAll('.cloud-tag').forEach((el) => {
-      el.addEventListener('click', () => {
-        tagFilter.value = el.dataset.tag;
-        switchTab('library');
-        loadLibrary();
-      });
-    });
+    // 作者分布
+    $('byAuthor').innerHTML = renderDist(stats.byAuthor, 'count', 'count');
   }
 
   function renderDist(rows, valKey, _countKey) {
@@ -973,7 +1137,7 @@
     const max = Math.max(...rows.map((r) => r[valKey] || 0), 1);
     return rows
       .map((r, i) => {
-        const name = escapeHtml(r.model || r.platform || '未知');
+        const name = escapeHtml(r.model || r.platform || r.author || '未知');
         const val = r[valKey] || 0;
         const pct = (val / max) * 100;
         const valText = valKey === 'totalTokens' ? fmtNum(val) + ' tok' : val + ' 篇';
@@ -1181,14 +1345,16 @@
       });
     });
 
-    // ESC 键：编辑模式→取消编辑，非编辑→关闭阅读页
+    // ESC 键：编辑模式→取消编辑，非编辑→关闭阅读页；否则关闭浮窗
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !$('readerView').hidden) {
-        if (state.isEditing) {
-          handleReaderCancel();
-        } else {
-          closeReader();
-        }
+      if (e.key !== 'Escape') return;
+      if (!$('readerView').hidden) {
+        if (state.isEditing) handleReaderCancel();
+        else closeReader();
+      } else if (!$('summarizeModal').hidden) {
+        closeSummarizeModal();
+      } else if (!$('providerModal').hidden) {
+        closeProviderModal();
       }
     });
 
@@ -1205,6 +1371,11 @@
     document.querySelectorAll('[data-go]').forEach((btn) => {
       btn.addEventListener('click', () => switchTab(btn.dataset.go));
     });
+
+    // 添加剪藏浮窗
+    $('homeAddBtn').addEventListener('click', openSummarizeModal);
+    $('summarizeModalClose').addEventListener('click', closeSummarizeModal);
+    $('summarizeBackdrop').addEventListener('click', closeSummarizeModal);
 
     // 设置页：服务商编辑
     $('addProviderBtn').addEventListener('click', () => openProviderModal(null));

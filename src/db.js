@@ -154,7 +154,7 @@ function insertClipping(d) {
 /**
  * 列表查询（带搜索、tag 筛选、分页）
  */
-function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0 } = {}) {
+function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, to } = {}) {
   const where = [];
   const params = {};
 
@@ -166,6 +166,14 @@ function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0 } = {})
     // tags 字段是 JSON 数组字符串，用 LIKE 粗略匹配（个人库量级够用）
     where.push('tags LIKE @tag');
     params.tag = `%"${tag.replace(/"/g, '\\"')}"%`;
+  }
+  if (from) {
+    where.push('saved_at >= @from');
+    params.from = from;
+  }
+  if (to) {
+    where.push('saved_at < @to');
+    params.to = to;
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -269,6 +277,14 @@ function getStats() {
     )
     .all();
 
+  // 按作者分布（供剪藏库右侧排行）
+  const byAuthor = db
+    .prepare(
+      `SELECT COALESCE(author,'未知') AS author, COUNT(*) AS count
+       FROM clippings GROUP BY author ORDER BY count DESC LIMIT 10`
+    )
+    .all();
+
   // 所有 tag 频次（从 JSON 字段解析）
   const allTags = db.prepare('SELECT tags FROM clippings').all();
   const tagCount = {};
@@ -291,9 +307,30 @@ function getStats() {
     totalCost: totals.totalCost,
     byModel,
     byPlatform,
+    byAuthor,
     topTags,
     distinctTags: Object.keys(tagCount).length // 去重标签总数（供首页「标签量」卡片）
   };
+}
+
+/**
+ * 时间聚类：按年/月/周/日聚合篇数（供剪藏库左侧时间筛选）
+ */
+function getTimeClusters() {
+  const byYear = db
+    .prepare(`SELECT substr(saved_at,1,4) AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC`)
+    .all();
+  const byMonth = db
+    .prepare(`SELECT substr(saved_at,1,7) AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC`)
+    .all();
+  const byWeek = db
+    // 以「所在周周一」日期为 key（dow: 0=周日 → 折算为距周一天数），便于前端换算 from/to
+    .prepare(`SELECT date(saved_at, '-' || ((CAST(strftime('%w', saved_at) AS INTEGER) + 6) % 7) || ' days') AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC LIMIT 40`)
+    .all();
+  const byDay = db
+    .prepare(`SELECT substr(saved_at,1,10) AS key, COUNT(*) AS count FROM clippings GROUP BY key ORDER BY key DESC LIMIT 60`)
+    .all();
+  return { byYear, byMonth, byWeek, byDay };
 }
 
 /**
@@ -332,5 +369,6 @@ module.exports = {
   updateClipping,
   deleteClipping,
   getStats,
+  getTimeClusters,
   getTokenTrend
 };

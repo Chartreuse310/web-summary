@@ -4,7 +4,7 @@
  *   GET /api/stats/trend  时间趋势（默认 30 天）
  */
 const express = require('express');
-const { getStats, getTokenTrend } = require('../db');
+const { getStats, getTokenTrend, getTimeClusters } = require('../db');
 
 const router = express.Router();
 
@@ -22,6 +22,14 @@ router.get('/trend', (req, res) => {
     res.json(getTokenTrend(days));
   } catch (err) {
     res.status(500).json({ error: `趋势查询失败：${err.message}` });
+  }
+});
+
+router.get('/clusters', (req, res) => {
+  try {
+    res.json(getTimeClusters());
+  } catch (err) {
+    res.status(500).json({ error: `聚类查询失败：${err.message}` });
   }
 });
 
