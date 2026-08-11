@@ -6,6 +6,8 @@ Enter a URL → auto-fetch the page → AI generates a summary → save, analyze
 每一个剪藏都包含：**标题、作者、发布平台、发布时间、文章目录、摘要、标签、生成模型、Token 用量、预估费用、原文链接**。
 Each clipping stores: **title, authors, publishing platform, publish date, article outline, summary, tags, model used, token usage, estimated cost, and source link**.
 
+> 📝 规划中的功能与迭代想法见 [TODO.md](./TODO.md) · Planned features and ideas live in [TODO.md](./TODO.md)
+
 ## 🖼️ 演示 / Demo
 
 ![首页 / Home](screenshots/home.png)
