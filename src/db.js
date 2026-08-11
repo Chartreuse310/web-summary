@@ -10,6 +10,7 @@
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const { t } = require('./i18n');
 
 const DB_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DB_DIR, 'clippings.db');
@@ -151,6 +152,20 @@ function safeParse(s, fallback) {
  * 统一按分隔符（逗号/顿号/分号/&/and/和/与/纯空格）拆分，trim 后去空。
  * 这是 API 出口的唯一护栏：保证 items[].author 永远是字符串数组。
  */
+
+// 「张三 等」「Zhang et al.」这类省略标记不是真实作者名，
+// 这里统一过滤掉，避免污染作者排行与统计。
+// 匹配：中文「等」；英文 et al / et.al / et al. （大小写不敏感）。
+// 用 function 声明（会提升），保证文件顶部迁移块调用 normalizeAuthors 时可用。
+function isAuthorStop(name) {
+  if (!name) return true;
+  const n = name.trim();
+  if (!n) return true;
+  if (n === '等') return true;
+  if (/^et\.?\s*al\.?$/i.test(n)) return true;
+  return false;
+}
+
 function normalizeAuthors(raw) {
   // 先把入参规整到一个"字符串候选列表"
   let list;
@@ -180,11 +195,15 @@ function normalizeAuthors(raw) {
   for (const item of list) {
     if (item === null || item === undefined) continue;
     const s = typeof item === 'string' ? item : String(item);
+    // 「et al.」含空格会被后面的空格拆分误拆成两个词，
+    // 先把它替换成分隔符，使其整体被当作省略标记过滤掉。
+    const normalized = s.replace(/\bet\.?\s*al\.?/gi, ',');
     // 单个值内部可能仍含分隔符（如迁移前的 "张三 李四"），再拆一次
-    const parts = s.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+|\s+/i);
+    const parts = normalized.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+|\s+/i);
     for (const p of parts) {
       const name = p.trim();
-      if (name && !seen.has(name)) {
+      // 过滤空值与「等 / et al.」类省略标记，再去重
+      if (!isAuthorStop(name) && !seen.has(name)) {
         seen.add(name);
         out.push(name);
       }
@@ -342,8 +361,9 @@ function deleteClipping(id) {
  * @param {object} opt { lang } 仅统计指定语言的剪藏（中英文分区）
  */
 function getStats({ lang } = {}) {
-  const langWhere = lang ? 'WHERE lang = ?' : '';
-  const langArg = lang ? [lang] : [];
+  // 统一用命名参数：WHERE 条件用 @lang，平台兜底用 @unknown
+  const langClause = lang ? 'WHERE lang = @lang' : '';
+  const params = lang ? { lang } : {};
 
   const totals = db
     .prepare(
@@ -351,9 +371,9 @@ function getStats({ lang } = {}) {
          COUNT(*)                    AS count,
          COALESCE(SUM(total_tokens), 0)  AS totalTokens,
          COALESCE(SUM(cost), 0)          AS totalCost
-       FROM clippings ${langWhere}`
+       FROM clippings ${langClause}`
     )
-    .get(...langArg);
+    .get(params);
 
   const byModel = db
     .prepare(
@@ -361,23 +381,24 @@ function getStats({ lang } = {}) {
               COUNT(*)                    AS count,
               COALESCE(SUM(total_tokens),0) AS totalTokens,
               COALESCE(SUM(cost),0)         AS totalCost
-       FROM clippings ${langWhere} GROUP BY model ORDER BY totalTokens DESC`
+       FROM clippings ${langClause} GROUP BY model ORDER BY totalTokens DESC`
     )
-    .all(...langArg);
+    .all(params);
 
+  const unknownLabel = t(lang || 'zh', 'stats.unknown');
   const byPlatform = db
     .prepare(
-      `SELECT COALESCE(platform,'未知') AS platform, COUNT(*) AS count
-       FROM clippings ${langWhere} GROUP BY platform ORDER BY count DESC LIMIT 10`
+      `SELECT COALESCE(NULLIF(platform,''), @unknown) AS platform, COUNT(*) AS count
+       FROM clippings ${langClause} GROUP BY platform ORDER BY count DESC LIMIT 10`
     )
-    .all(...langArg);
+    .all({ ...params, unknown: unknownLabel });
 
   // 按作者分布（从 JSON 数组展开，每个作者独立计数 + 累计 token/费用）
-  const allAuthorRows = db.prepare(`SELECT author, total_tokens, cost FROM clippings ${langWhere}`).all(...langArg);
+  const allAuthorRows = db.prepare(`SELECT author, total_tokens, cost FROM clippings ${langClause}`).all(params);
   const authorStat = {};
   for (const row of allAuthorRows) {
     const names = normalizeAuthors(row.author);
-    const keys = names.length ? names : ['未知'];
+    const keys = names.length ? names : [unknownLabel];
     for (const k of keys) {
       if (!authorStat[k]) authorStat[k] = { count: 0, totalTokens: 0, totalCost: 0 };
       authorStat[k].count += 1;
@@ -391,7 +412,7 @@ function getStats({ lang } = {}) {
     .map(([author, v]) => ({ author, count: v.count, totalTokens: v.totalTokens, totalCost: v.totalCost }));
 
   // 所有 tag 频次（从 JSON 字段解析）
-  const allTags = db.prepare(`SELECT tags FROM clippings ${langWhere}`).all(...langArg);
+  const allTags = db.prepare(`SELECT tags FROM clippings ${langClause}`).all(params);
   const tagCount = {};
   for (const { tags } of allTags) {
     const arr = safeParse(tags, []);

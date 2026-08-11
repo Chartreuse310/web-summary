@@ -50,6 +50,7 @@ const DICT = {
     'err.queryFailed': '查询失败：{msg}',
     'err.clippingNotFound': '剪藏不存在',
     'err.updateFailed': '更新失败：{msg}',
+    'stats.unknown': '未知',
     'err.statsFailed': '统计失败：{msg}',
     'err.trendFailed': '趋势查询失败：{msg}',
     'err.clustersFailed': '聚类查询失败：{msg}'
@@ -96,6 +97,7 @@ const DICT = {
     'err.queryFailed': 'Query failed: {msg}',
     'err.clippingNotFound': 'Clipping not found',
     'err.updateFailed': 'Update failed: {msg}',
+    'stats.unknown': 'Unknown',
     'err.statsFailed': 'Stats failed: {msg}',
     'err.trendFailed': 'Trend query failed: {msg}',
     'err.clustersFailed': 'Clusters query failed: {msg}'

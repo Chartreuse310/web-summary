@@ -6,6 +6,16 @@ Enter a URL → auto-fetch the page → AI generates a summary → save, analyze
 每一个剪藏都包含：**标题、作者、发布平台、发布时间、文章目录、摘要、标签、生成模型、Token 用量、预估费用、原文链接**。
 Each clipping stores: **title, authors, publishing platform, publish date, article outline, summary, tags, model used, token usage, estimated cost, and source link**.
 
+## 🖼️ 演示 / Demo
+
+![首页 / Home](screenshots/home.png)
+*首页：条目计数、贡献热力图、标签云、最近剪藏*
+*Home: counts, contribution heatmap, tag cloud, recent clippings*
+
+![剪藏库 / Library](screenshots/library.png)
+*剪藏库：时间聚类、搜索筛选、列表与排行*
+*Library: time clusters, search/filter, list and rankings*
+
 ---
 
 ## 🌐 语言 / Language
@@ -163,6 +173,9 @@ web-summary/
 │   ├── i18n.js                # 前端 i18n（中英字典）/ frontend i18n (zh/en dict)
 │   ├── app.js                 # 前端交互 / frontend logic
 │   └── chart.js               # Canvas 折线图 / Canvas chart
+├── screenshots/               # README 演示截图 / README demo screenshots
+│   ├── home.png
+│   └── library.png
 └── data/
     └── clippings.db           # SQLite 数据库（运行时生成，git 忽略）/ runtime-generated, gitignored
 ```
