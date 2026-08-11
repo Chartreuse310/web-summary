@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.log
+.DS_Store
+
+# SQLite 剪藏库数据
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ZCode 会话工作区元数据
+.zcode/

@@ -1,0 +1,22 @@
+{
+  "name": "web-summary",
+  "version": "1.0.0",
+  "description": "网页总结工具：抓取网页 → AI 生成中文摘要，支持多模型切换、Token 监控与费用估算",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsdom": "^24.1.0"
+  },
+  "license": "MIT"
+}

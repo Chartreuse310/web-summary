@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>网页剪藏库</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1 class="title">📚 网页剪藏库</h1>
+      <p class="subtitle">抓取网页 → AI 中文摘要 → 永久收藏与统计</p>
+    </header>
+
+    <!-- Tab 切换 -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="summarize">✨ 生成摘要</button>
+      <button class="tab" data-tab="library">📚 剪藏库</button>
+      <button class="tab" data-tab="stats">📊 统计</button>
+    </nav>
+
+    <!-- ===== Tab 1: 总结 ===== -->
+    <section class="tab-panel active" id="panel-summarize">
+      <div class="card input-card">
+        <label class="field-label" for="urlInput">网页地址</label>
+        <input type="url" id="urlInput" class="url-input"
+               placeholder="https://example.com/article" autocomplete="off" />
+
+        <div class="selects">
+          <div class="select-group">
+            <label class="field-label" for="providerSelect">服务商</label>
+            <select id="providerSelect" class="select"></select>
+          </div>
+          <div class="select-group">
+            <label class="field-label" for="modelSelect">模型</label>
+            <select id="modelSelect" class="select"></select>
+          </div>
+        </div>
+
+        <button id="summarizeBtn" class="btn-primary" type="button">
+          <span class="btn-text">生成摘要</span>
+        </button>
+      </div>
+
+      <!-- 加载 -->
+      <div class="card loading-card" id="loadingCard" hidden>
+        <div class="spinner"></div>
+        <p class="loading-text" id="loadingText">正在抓取网页…</p>
+      </div>
+
+      <!-- 错误 -->
+      <div class="card error-card" id="errorCard" hidden><p id="errorText"></p></div>
+
+      <!-- 结果 -->
+      <div class="card result-card" id="resultCard" hidden>
+        <h2 class="result-title" id="resultTitle"></h2>
+        <div class="meta-line" id="resultMeta"></div>
+
+        <div class="result-section" id="outlineSection" hidden>
+          <div class="section-label">📑 目录</div>
+          <div class="outline-tree" id="resultOutline"></div>
+        </div>
+
+        <div class="result-section">
+          <div class="section-label">📝 摘要</div>
+          <div class="result-summary" id="resultSummary"></div>
+        </div>
+
+        <div class="result-section">
+          <div class="section-label">🏷️ 标签</div>
+          <div class="tag-editor" id="tagEditor"></div>
+        </div>
+
+        <a id="resultLink" class="result-link" target="_blank" rel="noopener noreferrer">查看原文 →</a>
+
+        <div class="usage-bar" id="usageBar"></div>
+
+        <button id="saveBtn" class="btn-primary" type="button" disabled>💾 保存到剪藏库</button>
+      </div>
+    </section>
+
+    <!-- ===== Tab 2: 剪藏库 ===== -->
+    <section class="tab-panel" id="panel-library">
+      <div class="card library-toolbar">
+        <input type="search" id="searchInput" class="url-input"
+               placeholder="搜索标题/摘要/作者…" autocomplete="off" />
+        <div class="toolbar-row">
+          <select id="tagFilter" class="select"><option value="">全部标签</option></select>
+          <select id="sortBy" class="select">
+            <option value="recent">最近保存</option>
+            <option value="tokens">Token 用量</option>
+            <option value="cost">费用</option>
+          </select>
+          <button id="refreshBtn" class="btn-secondary" type="button">刷新</button>
+        </div>
+      </div>
+
+      <div id="libraryList" class="library-list">
+        <p class="empty-hint">暂无剪藏，去「生成摘要」保存第一篇吧</p>
+      </div>
+    </section>
+
+    <!-- ===== Tab 3: 统计 ===== -->
+    <section class="tab-panel" id="panel-stats">
+      <div class="stats-summary">
+        <div class="card stat-big">
+          <span class="stat-label">剪藏总数</span>
+          <span class="stat-value" id="bigCount">0</span>
+        </div>
+        <div class="card stat-big">
+          <span class="stat-label">累计 Token</span>
+          <span class="stat-value" id="bigTokens">0</span>
+        </div>
+        <div class="card stat-big">
+          <span class="stat-label">累计费用</span>
+          <span class="stat-value" id="bigCost">¥0</span>
+        </div>
+      </div>
+
+      <div class="card chart-card">
+        <div class="chart-header">
+          <span class="stats-title">📈 Token 用量趋势</span>
+          <div class="metric-switch">
+            <button class="metric-btn active" data-metric="tokens">Token</button>
+            <button class="metric-btn" data-metric="cost">费用</button>
+            <button class="metric-btn" data-metric="count">剪藏数</button>
+          </div>
+        </div>
+        <canvas id="trendChart" width="700" height="280"></canvas>
+        <p class="chart-empty" id="chartEmpty" hidden>暂无数据</p>
+      </div>
+
+      <div class="card">
+        <div class="stats-title" style="margin-bottom:12px">🤖 按模型分布</div>
+        <div id="byModel" class="dist-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="stats-title" style="margin-bottom:12px">🌐 按平台分布</div>
+        <div id="byPlatform" class="dist-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="stats-title" style="margin-bottom:12px">🏷️ 热门标签</div>
+        <div id="topTags" class="tag-cloud"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>Token 与费用为估算值，仅供参考。数据保存在本地 data/clippings.db。</p>
+    </footer>
+  </main>
+
+  <!-- 详情弹窗 -->
+  <div class="modal" id="detailModal" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="modal-body">
+      <button class="modal-close" id="modalClose">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="chart.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
