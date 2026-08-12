@@ -195,17 +195,22 @@ function normalizeAuthors(raw) {
   for (const item of list) {
     if (item === null || item === undefined) continue;
     const s = typeof item === 'string' ? item : String(item);
-    // 「et al.」含空格会被后面的空格拆分误拆成两个词，
-    // 先把它替换成分隔符，使其整体被当作省略标记过滤掉。
+    // 先剥离「et al.」省略尾缀：把 "Smith et al." 这类替换成 "Smith,"，
+    // 使其按逗号分隔后留下真实作者名 "Smith"（而非整串 "Smith et al."）。
     const normalized = s.replace(/\bet\.?\s*al\.?/gi, ',');
-    // 单个值内部可能仍含分隔符（如迁移前的 "张三 李四"），再拆一次
-    const parts = normalized.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+|\s+/i);
+    // 按非空格分隔符拆分（逗号/顿号/分号/&/and/和/与）
+    const parts = normalized.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+/i);
     for (const p of parts) {
-      const name = p.trim();
-      // 过滤空值与「等 / et al.」类省略标记，再去重
-      if (!isAuthorStop(name) && !seen.has(name)) {
-        seen.add(name);
-        out.push(name);
+      // 含中文：人名内部不含空格，空格是多作者分隔符，再按空格拆（如"乔钰 魏青"→两人）；
+      // 不含中文（拉丁等）：空格是「名 姓」内部，保留（如"John Smith"）。
+      const names = /[\u4e00-\u9fff]/.test(p) ? p.trim().split(/\s+/) : [p];
+      for (const name of names) {
+        const n = name.trim();
+        // 过滤空值与「等 / et al.」类省略标记，再去重
+        if (!isAuthorStop(n) && !seen.has(n)) {
+          seen.add(n);
+          out.push(n);
+        }
       }
     }
   }

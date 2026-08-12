@@ -38,8 +38,12 @@ function validateUrl(raw, lang) {
 function splitAuthors(raw, set) {
   const parts = raw.split(/[,，、;；&]|\s+and\s+|\s+和\s+|\s+与\s+/i);
   for (const p of parts) {
-    const name = p.trim();
-    if (name) set.add(name);
+    // 含中文：空格视为多作者分隔符（中文人名内部不含空格）；否则保留空格（名 姓）
+    const names = /[\u4e00-\u9fff]/.test(p) ? p.trim().split(/\s+/) : [p.trim()];
+    for (const name of names) {
+      const n = name.trim();
+      if (n) set.add(n);
+    }
   }
 }
 
