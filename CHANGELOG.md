@@ -1,5 +1,13 @@
 # 更新日志
 
+本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 风格，版本号规则见 [VERSIONING.md](./VERSIONING.md)。
+
+## [Unreleased]
+
+## [1.0.0] - 2026-08-12
+
+首个正式版本。以下按日期记录的开发历史均归入 1.0.0。
+
 ## 2026-08-12
 
 ### 新增：项目添加 MIT 许可证

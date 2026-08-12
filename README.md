@@ -122,6 +122,20 @@ Falls back to `.env` when the frontend has no provider configured.
 
 ---
 
+## 🔄 版本与更新 / Versioning & Updates
+
+本项目遵循语义化版本（规则见 [VERSIONING.md](./VERSIONING.md)），更新日志见 [CHANGELOG.md](./CHANGELOG.md)。
+This project follows Semantic Versioning (see [VERSIONING.md](./VERSIONING.md)); the changelog lives at [CHANGELOG.md](./CHANGELOG.md).
+
+升级方式 / To upgrade:
+
+```bash
+git pull && npm install && npm start
+```
+
+数据库 schema 变更会在启动时自动幂等迁移，通常无需手动处理；如有破坏性变更（MAJOR），会在 CHANGELOG 单列「破坏性变更」说明。
+Database schema changes migrate automatically and idempotently on startup, so manual steps are rarely needed; any breaking change (MAJOR) will be listed under a dedicated "Breaking Changes" section in the changelog.
+
 ## 🧱 技术架构 / Architecture
 
 ```
