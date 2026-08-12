@@ -578,11 +578,9 @@
     // ---- 头部 ----
     $('readerTitle').textContent = d.title;
 
-    // ---- 右栏：文章信息（平台/作者/发布/收藏）----
-    const authorText = fmtAuthors(d.author);
+    // ---- 右栏：文章信息（平台/发布/收藏；作者单独走可编辑块）----
     const metaParts = [
       d.platform && escapeHtml(d.platform),
-      authorText && escapeHtml(t('meta.author') + authorText),
       d.publishedAt && escapeHtml(t('meta.published') + fmtDate(d.publishedAt)),
       escapeHtml(t('meta.savedAt') + fmtDate(d.savedAt))
     ].filter(Boolean);
@@ -607,6 +605,9 @@
 
     // ---- 右栏：摘要 ----
     $('readerSummary').textContent = d.summary;
+
+    // ---- 右栏：作者（可编辑）----
+    renderReaderAuthors(d);
 
     // ---- 右栏：标签（可编辑）----
     renderReaderTags(d);
@@ -753,6 +754,58 @@
           body: JSON.stringify({ tags })
         });
         if (ok) { clipping.tags = tags; renderReaderTags(clipping); }
+      });
+    });
+  }
+
+  /**
+   * 渲染右栏作者编辑器，增删作者即时 PUT 到后端。
+   * 后端 normalizeAuthors 会按分隔符拆分/去重/过滤省略标记，
+   * 故保存成功后用后端返回的 author 重渲染，保证 chip 与归一化结果一致。
+   */
+  function renderReaderAuthors(clipping) {
+    const container = $('readerAuthors');
+    container.innerHTML = '';
+
+    (clipping.author || []).forEach((name, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.innerHTML = escapeHtml(name) + ' <span class="tag-remove" data-i="' + i + '">×</span>';
+      container.appendChild(chip);
+    });
+
+    const input = document.createElement('input');
+    input.className = 'tag-input';
+    input.placeholder = t('author.placeholderShort');
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        const name = input.value.trim();
+        const authors = (clipping.author || []).slice();
+        if (!authors.includes(name)) {
+          authors.push(name);
+          const { ok, d: resp } = await api('/api/clippings/' + clipping.id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ author: authors })
+          });
+          if (ok) { clipping.author = resp.author; renderReaderAuthors(clipping); }
+        } else {
+          input.value = '';
+        }
+      }
+    });
+    container.appendChild(input);
+
+    container.querySelectorAll('.tag-remove').forEach((el) => {
+      el.addEventListener('click', async () => {
+        const i = Number(el.dataset.i);
+        const authors = (clipping.author || []).filter((_, idx) => idx !== i);
+        const { ok, d: resp } = await api('/api/clippings/' + clipping.id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ author: authors })
+        });
+        if (ok) { clipping.author = resp.author; renderReaderAuthors(clipping); }
       });
     });
   }
@@ -1474,10 +1527,8 @@
     if (!$('readerView').hidden && state.currentReaderClipping) {
       const d = state.currentReaderClipping;
       // 重建元信息 / 用量（标签编辑器内文案也依赖 lang，但当前编辑中不打断）
-      const authorText = fmtAuthors(d.author);
       const metaParts = [
         d.platform && escapeHtml(d.platform),
-        authorText && escapeHtml(t('meta.author') + authorText),
         d.publishedAt && escapeHtml(t('meta.published') + fmtDate(d.publishedAt)),
         escapeHtml(t('meta.savedAt') + fmtDate(d.savedAt))
       ].filter(Boolean);
@@ -1487,7 +1538,7 @@
         '<div>' + escapeHtml(t('meta.model')) + '<b>' + escapeHtml(d.model) + '</b></div>' +
         '<div>' + escapeHtml(t('usage.input')) + ' <b>' + fmtNum(d.promptTokens) + '</b> · ' + escapeHtml(t('usage.output')) + ' <b>' + fmtNum(d.completionTokens) + '</b> · ' + escapeHtml(t('usage.total')) + ' <b>' + fmtNum(d.totalTokens) + '</b></div>' +
         '<div>' + escapeHtml(t('meta.cost')) + '<b>' + costText + '</b></div>';
-      if (!state.isEditing) renderReaderTags(d);
+      if (!state.isEditing) { renderReaderAuthors(d); renderReaderTags(d); }
     }
   }
 
