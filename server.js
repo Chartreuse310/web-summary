@@ -20,6 +20,7 @@ require('./src/db');
 
 const clippingsRouter = require('./src/router/clippings');
 const statsRouter = require('./src/router/stats');
+const highlightsRouter = require('./src/router/highlights');
 const { t, pickLang } = require('./src/i18n');
 
 const app = express();
@@ -122,9 +123,10 @@ app.post('/api/test-provider', async (req, res) => {
   }
 });
 
-// 剪藏 + 统计
+// 剪藏 + 统计 + 高亮
 app.use('/api/clippings', clippingsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api', highlightsRouter);
 
 app.use((req, res) => res.status(404).json({ error: t(pickLang(req), 'err.notFound') }));
 

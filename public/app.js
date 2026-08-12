@@ -415,11 +415,14 @@
           .join('');
         const pct = ((it.totalTokens || 0) / maxTokens) * 100;
         const num = String(i + 1).padStart(2, '0');
+        const hlBadge = it.highlightCount
+          ? `<span class="clip-hl-count" title="${escapeHtml(t('reader.highlights') + t('hl.countSuffix'))}">🕯 ${it.highlightCount}</span>`
+          : '';
         return `
           <div class="clip-item" data-id="${it.id}">
             <span class="clip-rank">${num}</span>
             <div class="clip-main">
-              <div class="clip-title">${escapeHtml(it.title)}</div>
+              <div class="clip-title">${escapeHtml(it.title)}${hlBadge}</div>
               <div class="clip-meta">${meta}</div>
               ${it.oneliner ? `<div class="clip-oneliner">${escapeHtml(it.oneliner)}</div>` : ''}
               <div class="clip-footer">
@@ -595,6 +598,12 @@
     // ---- 左栏：目录 ----
     buildReaderToc(d);
 
+    // ---- 左栏默认显示「目录」分页，高亮列表稍后随加载填充 ----
+    setAsideTab('outline');
+    $('readerHighlights').innerHTML = '';
+    // ---- 中栏高亮 + 左栏高亮列表（依赖正文已渲染）----
+    loadReaderHighlights(d);
+
     // ---- 右栏：一句话总结 ----
     if (d.oneliner) {
       $('readerOneliner').textContent = d.oneliner;
@@ -704,6 +713,296 @@
       toc.innerHTML = '';
     }
   }
+
+  // ============ 高亮评论 ============
+  //
+  // 定位策略：每条高亮存 exactText + prefix + suffix（基于文章 textContent 计算的上下文）。
+  // 还原时不依赖 DOM 偏移（文章被编辑后偏移会失效），而是遍历正文文本节点，
+  // 用 prefix+exactText+suffix 拼接做子串匹配，命中即在该段 Range 上包裹 <mark>。
+  // 匹配不到的高亮跳过渲染（容忍文章被改动），但仍在左栏列表里展示原文 + 评论。
+
+  const HL_PREFIX_LEN = 80;   // 上下文取前 80 字符，足够定位且省存储
+  const HL_SUFFIX_LEN = 80;
+
+  /** 取文章元素的全部文本（与保存时一致：textContent）*/
+  function hlArticleText() {
+    return $('readerArticle').textContent;
+  }
+
+  /**
+   * 在文章文本节点中按 prefix+exact+suffix 定位并应用一次高亮包裹。
+   * @returns {boolean} 是否成功包裹
+   */
+  function hlApplyOne(hl) {
+    const article = $('readerArticle');
+    const needle = (hl.prefix || '') + hl.exactText + (hl.suffix || '');
+
+    // 遍历所有文本节点，累积偏移，找到命中区间并跨越节点建 Range
+    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (node.nodeValue && node.nodeValue.length) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    });
+    const textNodes = [];
+    let n;
+    while ((n = walker.nextNode())) textNodes.push(n);
+    // 预拼接全文做一次 indexof，确定整体起始；再用节点逐一定位区间两端
+    const full = textNodes.map((tn) => tn.nodeValue).join('');
+    const start = full.indexOf(needle);
+    if (start === -1) return false;
+    const end = start + (hl.prefix ? hl.prefix.length : 0) + hl.exactText.length;
+
+    const range = document.createRange();
+    let consumed = 0;
+    let startSet = false;
+    for (const tn of textNodes) {
+      const len = tn.nodeValue.length;
+      const nodeStart = consumed;
+      const nodeEnd = consumed + len;
+      if (!startSet && start >= nodeStart && start < nodeEnd) {
+        range.setStart(tn, start - nodeStart);
+        startSet = true;
+      }
+      if (startSet && end > nodeStart && end <= nodeEnd) {
+        range.setEnd(tn, end - nodeStart);
+        break;
+      }
+      consumed = nodeEnd;
+    }
+    if (!startSet) return false;
+
+    try {
+      const mark = document.createElement('mark');
+      mark.className = 'hl' + (hl.comment ? ' has-comment' : '');
+      mark.dataset.hid = String(hl.id);
+      mark.dataset.exact = hl.exactText;
+      if (hl.comment) mark.title = hl.comment;
+      range.surroundContents(mark);
+      mark.addEventListener('click', (e) => { e.stopPropagation(); hlOpenPopover(hl, mark); });
+      return true;
+    } catch {
+      // surroundContents 在跨节点/边界（如选中跨标签）时会抛错；降级跳过该条
+      return false;
+    }
+  }
+
+  /** 重新渲染文章中的所有高亮（先移除现有 mark 再逐一应用）*/
+  function hlApplyAll(highlights) {
+    const article = $('readerArticle');
+    article.querySelectorAll('mark.hl').forEach((m) => {
+      const parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize();
+    });
+    // 逐条应用；已存在 exactText 相同的避免重复包裹（同一文本多次高亮）
+    (highlights || []).forEach(hlApplyOne);
+  }
+
+  /** 渲染左栏高亮列表 */
+  function renderReaderHighlights(highlights) {
+    const wrap = $('readerHighlights');
+    const countEl = $('asideHighlightCount');
+    const n = (highlights || []).length;
+    if (n) {
+      countEl.textContent = String(n);
+      setHidden(countEl, false);
+    } else {
+      setHidden(countEl, true);
+    }
+    if (!n) {
+      wrap.innerHTML = '<div class="hl-list-empty">' + escapeHtml(t('hl.empty')) + '</div>';
+      return;
+    }
+    wrap.innerHTML = highlights.map((hl) => {
+      const text = escapeHtml(hl.exactText.length > 120 ? hl.exactText.slice(0, 120) + '…' : hl.exactText);
+      const comment = hl.comment
+        ? '<div class="hl-list-item-comment">' + escapeHtml(hl.comment) + '</div>'
+        : '';
+      return '<div class="hl-list-item" data-hid="' + hl.id + '">' +
+        '<div class="hl-list-item-text">' + text + '</div>' +
+        comment + '</div>';
+    }).join('');
+    wrap.querySelectorAll('.hl-list-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const hid = el.dataset.hid;
+        const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(hid) + '"]');
+        if (mark) {
+          mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          mark.classList.add('flash');
+          setTimeout(() => mark.classList.remove('flash'), 800);
+        }
+      });
+    });
+  }
+
+  /** 左栏切换：目录 / 高亮 */
+  function setAsideTab(tab) {
+    const outline = tab === 'outline';
+    $('asideTabOutline').classList.toggle('active', outline);
+    $('asideTabHighlights').classList.toggle('active', !outline);
+    setHidden($('readerToc'), !outline);
+    setHidden($('readerHighlights'), outline);
+  }
+
+  /** 加载某篇剪藏的高亮并渲染（正文 + 左栏列表）*/
+  async function loadReaderHighlights(clipping) {
+    const { ok, d } = await api('/api/clippings/' + clipping.id + '/highlights');
+    if (!ok) { clipping.highlights = []; renderReaderHighlights([]); return; }
+    clipping.highlights = d;
+    hlApplyAll(d);
+    renderReaderHighlights(d);
+  }
+
+  /** 隐藏选中工具条 */
+  function hlHideToolbar() {
+    setHidden($('hlToolbar'), true);
+  }
+
+  /** 选中文本时浮现高亮按钮 */
+  function hlShowToolbarForSelection() {
+    if (state.isEditing) return hlHideToolbar();
+    const sel = window.getSelection();
+    const text = sel.toString().trim();
+    if (!text || text.length < 1) return hlHideToolbar();
+    const article = $('readerArticle');
+    // 选区必须在正文内
+    if (!article.contains(sel.anchorNode) || !article.contains(sel.focusNode)) return hlHideToolbar();
+    // 不在已有 mark 内创建（避免嵌套）
+    let p = sel.anchorNode;
+    while (p && p !== article) {
+      if (p.nodeType === 1 && p.tagName === 'MARK' && p.classList.contains('hl')) return hlHideToolbar();
+      p = p.parentNode;
+    }
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (!rect.width && !rect.height) return hlHideToolbar();
+    const tb = $('hlToolbar');
+    tb.style.left = (rect.left + window.scrollX + rect.width / 2) + 'px';
+    tb.style.top = (rect.top + window.scrollY - 6) + 'px';
+    setHidden(tb, false);
+  }
+
+  /** 计算选区的 prefix/suffix（基于文章 textContent 偏移）*/
+  function hlComputeContext(range) {
+    const article = $('readerArticle');
+    const articleText = article.textContent;
+    // range 在文章内的相对偏移：用前置 Range 测量
+    const preRange = document.createRange();
+    preRange.selectNodeContents(article);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const start = preRange.toString().length;
+    const exactText = range.toString();
+    return {
+      exactText,
+      prefix: articleText.slice(Math.max(0, start - HL_PREFIX_LEN), start),
+      suffix: articleText.slice(start + exactText.length, start + exactText.length + HL_SUFFIX_LEN)
+    };
+  }
+
+  /** 点击高亮按钮：创建高亮 */
+  async function hlCreateFromSelection() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const ctx = hlComputeContext(range);
+    if (!ctx.exactText) return;
+    const d = state.currentReaderClipping;
+    if (!d) return;
+
+    const btn = $('hlToolbarBtn');
+    btn.disabled = true;
+    try {
+      const { ok, d: resp } = await api('/api/clippings/' + d.id + '/highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ctx)
+      });
+      if (!ok) throw new Error(resp.error || t('err.saveFailed'));
+      // 应用包裹 + 刷新左栏
+      sel.removeAllRanges();
+      hlApplyOne(resp);
+      d.highlights = (d.highlights || []).concat([resp]);
+      renderReaderHighlights(d.highlights);
+      // 立即弹出评论框（可选填写）
+      const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(String(resp.id)) + '"]');
+      if (mark) hlOpenPopover(resp, mark);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+      hlHideToolbar();
+    }
+  }
+
+  /** 打开评论浮窗（mark 点击或新建后调用）*/
+  function hlOpenPopover(hl, mark) {
+    const pop = $('hlPopover');
+    const input = $('hlPopoverInput');
+    input.value = hl.comment || '';
+    // 定位到 mark 下方
+    const rect = mark.getBoundingClientRect();
+    pop.style.left = (rect.left + window.scrollX + rect.width / 2) + 'px';
+    pop.style.top = (rect.bottom + window.scrollY + 8) + 'px';
+    setHidden(pop, false);
+    pop.dataset.hid = String(hl.id);
+    setTimeout(() => input.focus(), 0);
+  }
+
+  function hlClosePopover() {
+    setHidden($('hlPopover'), true);
+    $('hlPopover').dataset.hid = '';
+  }
+
+  /** 保存评论 */
+  async function hlSaveComment() {
+    const pop = $('hlPopover');
+    const hid = Number(pop.dataset.hid);
+    if (!hid) return;
+    const comment = $('hlPopoverInput').value.trim();
+    const { ok, d: resp } = await api('/api/highlights/' + hid, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment })
+    });
+    if (!ok) { alert(resp.error || t('err.saveFailed')); return; }
+    // 更新本地 state + mark + 左栏
+    const d = state.currentReaderClipping;
+    if (d && d.highlights) {
+      const idx = d.highlights.findIndex((h) => h.id === hid);
+      if (idx >= 0) d.highlights[idx] = resp;
+    }
+    const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]');
+    if (mark) {
+      mark.classList.toggle('has-comment', !!resp.comment);
+      mark.title = resp.comment || '';
+    }
+    hlClosePopover();
+    if (d && d.highlights) renderReaderHighlights(d.highlights);
+  }
+
+  /** 删除高亮 */
+  async function hlDeleteCurrent() {
+    const pop = $('hlPopover');
+    const hid = Number(pop.dataset.hid);
+    if (!hid) return;
+    if (!confirm(t('hl.deleteConfirm'))) return;
+    const { ok, d: resp } = await api('/api/highlights/' + hid, { method: 'DELETE' });
+    if (!ok) { alert(resp.error || t('err.deleteFailed')); return; }
+    const d = state.currentReaderClipping;
+    if (d && d.highlights) {
+      d.highlights = d.highlights.filter((h) => h.id !== hid);
+    }
+    const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]');
+    if (mark) {
+      const parent = mark.parentNode;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+      parent.normalize();
+    }
+    hlClosePopover();
+    if (d && d.highlights) renderReaderHighlights(d.highlights);
+  }
+
+  // ============ 高亮评论 END ============
 
   /**
    * 渲染右栏标签编辑器，增删标签即时 PUT 到后端
@@ -824,6 +1123,12 @@
     if (!d) return;
 
     state.isEditing = true;
+
+    // 编辑前先收起高亮浮窗/工具条，并把正文中的 <mark> 拆回纯文本，
+    // 避免编辑时手动改 HTML 与 mark 节点冲突（保存后会按新正文重新定位高亮）
+    hlHideToolbar();
+    hlClosePopover();
+    hlApplyAll([]);
 
     // 快照原始数据
     state.editSnapshot = {
@@ -976,6 +1281,12 @@
       renderReaderArticle(resp);
       buildReaderToc(resp);
 
+      // 编辑后正文已变：重新按现有高亮在新 DOM 上定位包裹
+      hlApplyAll(resp.highlights || (d.highlights || []));
+      // 同步 state 上的高亮引用（resp 来自 PUT /clippings，不含 highlights 字段）
+      if (!resp.highlights) resp.highlights = d.highlights || [];
+      renderReaderHighlights(resp.highlights);
+
       // 更新一句话总结显示
       if (resp.oneliner) {
         $('readerOneliner').textContent = resp.oneliner;
@@ -1025,6 +1336,10 @@
     buildReaderToc(d);
 
     exitEditMode();
+
+    // 恢复正文后重新定位包裹高亮
+    hlApplyAll(d.highlights || []);
+    renderReaderHighlights(d.highlights || []);
   }
 
   /**
@@ -1034,6 +1349,8 @@
     if (state.isEditing) {
       exitEditMode();
     }
+    hlHideToolbar();
+    hlClosePopover();
     setHidden($('readerView'), true);
     setHidden(document.querySelector('.container'), false);
     $('readerArticle').innerHTML = '';
@@ -1149,10 +1466,13 @@
           fmtDate(it.savedAt) && (t('meta.savedAtPrefix') + fmtDate(it.savedAt))
         ].filter(Boolean).join(' · ');
         const num = String(i + 1).padStart(2, '0');
+        const hlBadge = it.highlightCount
+          ? '<span class="clip-hl-count" title="' + escapeHtml(t('reader.highlights') + t('hl.countSuffix')) + '">🕯 ' + it.highlightCount + '</span>'
+          : '';
         return '<div class="clip-item" data-id="' + it.id + '">' +
           '<span class="clip-rank">' + num + '</span>' +
           '<div class="clip-main">' +
-          '<div class="clip-title">' + escapeHtml(it.title) + '</div>' +
+          '<div class="clip-title">' + escapeHtml(it.title) + hlBadge + '</div>' +
           '<div class="clip-meta">' + meta + '</div>' +
           (it.oneliner ? '<div class="clip-oneliner">' + escapeHtml(it.oneliner) + '</div>' : '') +
           '</div></div>';
@@ -1457,12 +1777,51 @@
       });
     });
 
+    // 高亮：左栏分页切换
+    $('asideTabOutline').addEventListener('click', () => setAsideTab('outline'));
+    $('asideTabHighlights').addEventListener('click', () => setAsideTab('highlights'));
+
+    // 高亮：选中文字浮现工具条
+    const articleEl = $('readerArticle');
+    articleEl.addEventListener('mouseup', () => {
+      // 延迟一帧让 selection 更新到位
+      setTimeout(hlShowToolbarForSelection, 0);
+    });
+    articleEl.addEventListener('mousedown', (e) => {
+      // 点击不是工具条自身时隐藏工具条（保留选区开始）
+      if (!e.target.closest('#hlToolbar')) hlHideToolbar();
+    });
+    $('hlToolbarBtn').addEventListener('mousedown', (e) => {
+      // mousedown 保留选区，避免失焦
+      e.preventDefault();
+    });
+    $('hlToolbarBtn').addEventListener('click', hlCreateFromSelection);
+
+    // 高亮：评论浮窗
+    $('hlPopoverSave').addEventListener('click', hlSaveComment);
+    $('hlPopoverDelete').addEventListener('click', hlDeleteCurrent);
+    $('hlPopoverCancel').addEventListener('click', hlClosePopover);
+    // 点击正文空白处关闭评论浮窗
+    document.addEventListener('mousedown', (e) => {
+      const pop = $('hlPopover');
+      if (pop.hidden) return;
+      if (e.target.closest('#hlPopover') || e.target.closest('mark.hl')) return;
+      hlClosePopover();
+    });
+    // 滚动正文时收起浮窗与工具条（位置会错位）
+    $('readerArticle').addEventListener('scroll', () => {
+      hlHideToolbar();
+      hlClosePopover();
+    });
+
     // ESC 键：编辑模式→取消编辑，非编辑→关闭阅读页；否则关闭浮窗
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!$('readerView').hidden) {
-        if (state.isEditing) handleReaderCancel();
-        else closeReader();
+        if (state.isEditing) { handleReaderCancel(); return; }
+        if (!$('hlPopover').hidden) { hlClosePopover(); return; }
+        if (!$('hlToolbar').hidden) { hlHideToolbar(); window.getSelection().removeAllRanges(); return; }
+        closeReader();
       } else if (!$('summarizeModal').hidden) {
         closeSummarizeModal();
       } else if (!$('providerModal').hidden) {
@@ -1538,7 +1897,11 @@
         '<div>' + escapeHtml(t('meta.model')) + '<b>' + escapeHtml(d.model) + '</b></div>' +
         '<div>' + escapeHtml(t('usage.input')) + ' <b>' + fmtNum(d.promptTokens) + '</b> · ' + escapeHtml(t('usage.output')) + ' <b>' + fmtNum(d.completionTokens) + '</b> · ' + escapeHtml(t('usage.total')) + ' <b>' + fmtNum(d.totalTokens) + '</b></div>' +
         '<div>' + escapeHtml(t('meta.cost')) + '<b>' + costText + '</b></div>';
-      if (!state.isEditing) { renderReaderAuthors(d); renderReaderTags(d); }
+      if (!state.isEditing) {
+        renderReaderAuthors(d);
+        renderReaderTags(d);
+        renderReaderHighlights(d.highlights || []);
+      }
     }
   }
 

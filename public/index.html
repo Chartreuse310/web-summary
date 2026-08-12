@@ -336,10 +336,17 @@
     </header>
 
     <div class="reader-body">
-      <!-- 左栏：目录 -->
+      <!-- 左栏：目录 / 高亮 切换 -->
       <aside class="reader-toc" id="readerTocWrap">
-        <div class="reader-aside-title" data-i18n="reader.toc">目录</div>
+        <div class="reader-aside-switch">
+          <button type="button" class="aside-switch-btn active" id="asideTabOutline" data-i18n="reader.outline">目录</button>
+          <button type="button" class="aside-switch-btn" id="asideTabHighlights">
+            <span data-i18n="reader.highlights">高亮</span>
+            <span class="aside-switch-count" id="asideHighlightCount" hidden>0</span>
+          </button>
+        </div>
         <nav class="toc-list" id="readerToc"></nav>
+        <div class="hl-list" id="readerHighlights"></div>
       </aside>
 
       <!-- 中栏：全文 -->
@@ -373,6 +380,22 @@
         </section>
         <a id="readerLink" class="result-link" target="_blank" rel="noopener noreferrer" data-i18n="reader.viewOriginal">查看原文 →</a>
       </aside>
+    </div>
+  </div>
+
+  <!-- 选中文字时浮现的高亮工具条 -->
+  <div class="hl-toolbar" id="hlToolbar" hidden>
+    <button type="button" class="hl-toolbar-btn" id="hlToolbarBtn" data-i18n="hl.add">高亮</button>
+  </div>
+
+  <!-- 高亮评论编辑浮窗 -->
+  <div class="hl-popover" id="hlPopover" hidden>
+    <textarea class="hl-popover-input" id="hlPopoverInput" rows="3" data-i18n-ph="hl.commentPlaceholder"></textarea>
+    <div class="hl-popover-actions">
+      <button type="button" class="hl-popover-delete" id="hlPopoverDelete" data-i18n="hl.delete">删除高亮</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn-secondary hl-popover-cancel" id="hlPopoverCancel" data-i18n="btn.cancel">取消</button>
+      <button type="button" class="btn-primary hl-popover-save" id="hlPopoverSave" data-i18n="hl.save">保存评论</button>
     </div>
   </div>
 

@@ -22,6 +22,7 @@ if (!fs.existsSync(DB_DIR)) {
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL'); // 提升并发写性能
+db.pragma('foreign_keys = ON'); // 启用外键级联（删剪藏时联动删高亮）
 
 // ===== 建表（幂等）=====
 db.exec(`
@@ -106,6 +107,26 @@ db.exec(`
   }
 }
 
+// ===== 幻移：高亮评论表（幂等，可反复重启）=====
+// 每条高亮关联一篇剪藏；定位用 exact_text + prefix + suffix 三段文本上下文，
+// 不依赖 DOM 偏移（文章被编辑后偏移会失效），还原时前端按三段拼接做子串匹配。
+{
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS highlights (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      clipping_id INTEGER NOT NULL,
+      exact_text  TEXT NOT NULL,
+      prefix      TEXT NOT NULL,
+      suffix      TEXT NOT NULL,
+      comment     TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL,
+      FOREIGN KEY (clipping_id) REFERENCES clippings(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_highlights_clipping ON highlights(clipping_id);
+  `);
+}
+
 // ===== 行 → 对象（解析 JSON 字段）=====
 function rowToObj(row) {
   if (!row) return null;
@@ -128,7 +149,8 @@ function rowToObj(row) {
     contentText: row.content_text,
     contentHtml: row.content_html,
     lang: row.lang || 'zh',
-    savedAt: row.saved_at
+    savedAt: row.saved_at,
+    highlightCount: row.highlight_count != null ? row.highlight_count : 0
   };
 }
 
@@ -297,7 +319,9 @@ function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, 
 
   const rows = db
     .prepare(
-      `SELECT * FROM clippings ${whereSql} ${orderSql} LIMIT @limit OFFSET @offset`
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id) AS highlight_count
+       FROM clippings c ${whereSql} ${orderSql} LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit, offset });
 
@@ -309,7 +333,15 @@ function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, 
 }
 
 function getClipping(id) {
-  return rowToObj(db.prepare('SELECT * FROM clippings WHERE id = ?').get(id));
+  return rowToObj(
+    db
+      .prepare(
+        `SELECT c.*,
+                (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id) AS highlight_count
+         FROM clippings c WHERE c.id = ?`
+      )
+      .get(id)
+  );
 }
 
 /**
@@ -356,7 +388,78 @@ function updateClipping(id, { title, summary, oneliner, tags, author, contentHtm
 }
 
 function deleteClipping(id) {
+  // 外键级联已开（ON DELETE CASCADE），这里兜底手动删，兼容旧库未启用 foreign_keys 的情况
+  db.prepare('DELETE FROM highlights WHERE clipping_id = ?').run(id);
   db.prepare('DELETE FROM clippings WHERE id = ?').run(id);
+}
+
+// ===== 高亮评论 =====
+
+/** 高亮行 → 对象 */
+function highlightRowToObj(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    clippingId: row.clipping_id,
+    exactText: row.exact_text,
+    prefix: row.prefix,
+    suffix: row.suffix,
+    comment: row.comment,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+/**
+ * 新增高亮
+ * @param {object} h { clippingId, exactText, prefix, suffix, comment? }
+ * @returns {object} 新建的高亮对象
+ */
+function insertHighlight({ clippingId, exactText, prefix, suffix, comment }) {
+  const now = new Date().toISOString();
+  const result = db
+    .prepare(
+      `INSERT INTO highlights (clipping_id, exact_text, prefix, suffix, comment, created_at, updated_at)
+       VALUES (@clippingId, @exactText, @prefix, @suffix, @comment, @now, @now)`
+    )
+    .run({
+      clippingId,
+      exactText,
+      prefix: prefix || '',
+      suffix: suffix || '',
+      comment: comment || null,
+      now: now
+    });
+  return getHighlight(result.lastInsertRowid);
+}
+
+/** 取单条高亮 */
+function getHighlight(id) {
+  return highlightRowToObj(db.prepare('SELECT * FROM highlights WHERE id = ?').get(id));
+}
+
+/** 列出某篇剪藏的全部高亮（按创建时间升序，与文中出现顺序一致）*/
+function listHighlights(clippingId) {
+  return db
+    .prepare('SELECT * FROM highlights WHERE clipping_id = ? ORDER BY created_at ASC, id ASC')
+    .all(clippingId)
+    .map(highlightRowToObj);
+}
+
+/** 更新高亮评论 */
+function updateHighlight(id, { comment }) {
+  const now = new Date().toISOString();
+  db.prepare('UPDATE highlights SET comment = @comment, updated_at = @now WHERE id = @id').run({
+    id,
+    comment: comment || null,
+    now
+  });
+  return getHighlight(id);
+}
+
+/** 删除单条高亮 */
+function deleteHighlight(id) {
+  db.prepare('DELETE FROM highlights WHERE id = ?').run(id);
 }
 
 // ===== 统计 =====
@@ -504,6 +607,11 @@ module.exports = {
   getClipping,
   updateClipping,
   deleteClipping,
+  insertHighlight,
+  getHighlight,
+  listHighlights,
+  updateHighlight,
+  deleteHighlight,
   getStats,
   getTimeClusters,
   getTokenTrend
