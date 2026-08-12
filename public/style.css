@@ -1,5 +1,6 @@
 /* ===== 基础 ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 :root {
   /* 参考站编辑风令牌 */
@@ -1095,6 +1096,7 @@ body {
   font-size: 12px;
   color: var(--ink-3);
 }
+.time-filter-badge[hidden] { display: none; }
 .time-filter-badge .clear-time { cursor: pointer; color: var(--warm); font-weight: 700; }
 .time-filter-badge .clear-time:hover { color: var(--red); }
 
