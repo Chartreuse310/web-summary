@@ -805,7 +805,7 @@
       if (start > 0) node.splitText(start);
       const target = start > 0 ? node.nextSibling : node;
       const mark = document.createElement('mark');
-      mark.className = 'hl' + (hl.comment ? ' has-comment' : '');
+      mark.className = 'hl hl-' + (hl.color || 'yellow') + (hl.comment ? ' has-comment' : '');
       mark.dataset.hid = String(hl.id);
       mark.dataset.exact = hl.exactText;
       if (hl.comment) mark.title = hl.comment;
@@ -850,7 +850,8 @@
       const comment = hl.comment
         ? '<div class="hl-list-item-comment">' + escapeHtml(hl.comment) + '</div>'
         : '';
-      return '<div class="hl-list-item" data-hid="' + hl.id + '">' +
+      const colorClass = 'hl-' + (hl.color || 'yellow');
+      return '<div class="hl-list-item ' + colorClass + '" data-hid="' + hl.id + '">' +
         '<div class="hl-list-item-text">' + text + '</div>' +
         comment + '</div>';
     }).join('');
@@ -931,8 +932,8 @@
     };
   }
 
-  /** 点击高亮按钮：创建高亮 */
-  async function hlCreateFromSelection() {
+  /** 点击某色块：用该颜色创建高亮 */
+  async function hlCreateFromSelection(color) {
     const sel = window.getSelection();
     if (!sel.rangeCount) return;
     const range = sel.getRangeAt(0);
@@ -941,13 +942,13 @@
     const d = state.currentReaderClipping;
     if (!d) return;
 
-    const btn = $('hlToolbarBtn');
-    btn.disabled = true;
+    const buttons = $('hlToolbar').querySelectorAll('button');
+    buttons.forEach((b) => { b.disabled = true; });
     try {
       const { ok, d: resp } = await api('/api/clippings/' + d.id + '/highlights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ctx)
+        body: JSON.stringify(Object.assign({}, ctx, { color: color || 'yellow' }))
       });
       if (!ok) throw new Error(resp.error || t('err.saveFailed'));
       // 应用包裹 + 刷新左栏
@@ -960,7 +961,7 @@
     } catch (err) {
       alert(err.message);
     } finally {
-      btn.disabled = false;
+      buttons.forEach((b) => { b.disabled = false; });
       hlHideToolbar();
     }
   }
@@ -976,12 +977,46 @@
     pop.style.top = (rect.bottom + window.scrollY + 8) + 'px';
     setHidden(pop, false);
     pop.dataset.hid = String(hl.id);
+    setPopoverColor(hl.color || 'yellow');
     setTimeout(() => input.focus(), 0);
   }
 
   function hlClosePopover() {
     setHidden($('hlPopover'), true);
     $('hlPopover').dataset.hid = '';
+  }
+
+  /** 设置浮窗色块选中态 */
+  function setPopoverColor(color) {
+    const c = color || 'yellow';
+    $('hlPopover').dataset.color = c;
+    $('hlPopoverColors').querySelectorAll('.hl-color-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.color === c);
+    });
+  }
+
+  /** 即时修改高亮颜色（不影响评论）*/
+  async function hlChangeColor(newColor) {
+    const pop = $('hlPopover');
+    const hid = Number(pop.dataset.hid);
+    if (!hid) return;
+    const d = state.currentReaderClipping;
+    const hl = d && d.highlights && d.highlights.find((h) => h.id === hid);
+    if (!hl || hl.color === newColor) return;
+    const { ok, d: resp } = await api('/api/highlights/' + hid, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ color: newColor })
+    });
+    if (!ok) { alert(resp.error || t('err.updateFailed')); return; }
+    hl.color = resp.color;
+    // 更新正文该高亮所有 mark 的颜色 class（保留 has-comment）
+    $('readerArticle').querySelectorAll('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]').forEach((m) => {
+      m.classList.remove('hl-yellow', 'hl-blue', 'hl-red');
+      m.classList.add('hl-' + resp.color);
+    });
+    setPopoverColor(resp.color);
+    renderReaderHighlights(d.highlights);
   }
 
   /** 保存评论 */
@@ -1823,16 +1858,24 @@
       // 点击不是工具条自身时隐藏工具条（保留选区开始）
       if (!e.target.closest('#hlToolbar')) hlHideToolbar();
     });
-    $('hlToolbarBtn').addEventListener('mousedown', (e) => {
-      // mousedown 保留选区，避免失焦
-      e.preventDefault();
+    // 工具条内任意色块 mousedown 都保留选区；click 按所点色块的颜色创建高亮
+    $('hlToolbar').addEventListener('mousedown', (e) => { e.preventDefault(); });
+    $('hlToolbar').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-color]');
+      if (!btn) return;
+      hlCreateFromSelection(btn.dataset.color);
     });
-    $('hlToolbarBtn').addEventListener('click', hlCreateFromSelection);
 
     // 高亮：评论浮窗
     $('hlPopoverSave').addEventListener('click', hlSaveComment);
     $('hlPopoverDelete').addEventListener('click', hlDeleteCurrent);
     $('hlPopoverCancel').addEventListener('click', hlClosePopover);
+    // 评论浮窗：点色块即时改色
+    $('hlPopoverColors').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-color]');
+      if (!btn) return;
+      hlChangeColor(btn.dataset.color);
+    });
     // 点击正文空白处关闭评论浮窗
     document.addEventListener('mousedown', (e) => {
       const pop = $('hlPopover');

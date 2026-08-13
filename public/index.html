@@ -385,11 +385,18 @@
 
   <!-- 选中文字时浮现的高亮工具条 -->
   <div class="hl-toolbar" id="hlToolbar" hidden>
-    <button type="button" class="hl-toolbar-btn" id="hlToolbarBtn" data-i18n="hl.add">高亮</button>
+    <button type="button" class="hl-color-btn hl-yellow" data-color="yellow" data-i18n-title="hl.colorYellow" title="黄色高亮"></button>
+    <button type="button" class="hl-color-btn hl-blue" data-color="blue" data-i18n-title="hl.colorBlue" title="蓝色高亮"></button>
+    <button type="button" class="hl-color-btn hl-red" data-color="red" data-i18n-title="hl.colorRed" title="红色高亮"></button>
   </div>
 
   <!-- 高亮评论编辑浮窗 -->
   <div class="hl-popover" id="hlPopover" hidden>
+    <div class="hl-popover-colors" id="hlPopoverColors">
+      <button type="button" class="hl-color-btn hl-yellow" data-color="yellow" data-i18n-title="hl.colorYellow" title="黄色高亮"></button>
+      <button type="button" class="hl-color-btn hl-blue" data-color="blue" data-i18n-title="hl.colorBlue" title="蓝色高亮"></button>
+      <button type="button" class="hl-color-btn hl-red" data-color="red" data-i18n-title="hl.colorRed" title="红色高亮"></button>
+    </div>
     <textarea class="hl-popover-input" id="hlPopoverInput" rows="3" data-i18n-ph="hl.commentPlaceholder"></textarea>
     <div class="hl-popover-actions">
       <button type="button" class="hl-popover-delete" id="hlPopoverDelete" data-i18n="hl.delete">删除高亮</button>

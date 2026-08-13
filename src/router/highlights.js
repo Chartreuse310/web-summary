@@ -21,6 +21,9 @@ const { t, pickLang } = require('../i18n');
 
 const router = express.Router();
 
+// 允许的高亮颜色（非法值统一降级为 yellow）
+const HIGHLIGHT_COLORS = ['yellow', 'blue', 'red'];
+
 // 列出某篇剪藏的全部高亮
 router.get('/clippings/:id/highlights', (req, res) => {
   const lang = pickLang(req);
@@ -48,7 +51,8 @@ router.post('/clippings/:id/highlights', (req, res) => {
       exactText: b.exactText,
       prefix: typeof b.prefix === 'string' ? b.prefix : '',
       suffix: typeof b.suffix === 'string' ? b.suffix : '',
-      comment: typeof b.comment === 'string' && b.comment.trim() ? b.comment.trim() : null
+      comment: typeof b.comment === 'string' && b.comment.trim() ? b.comment.trim() : null,
+      color: HIGHLIGHT_COLORS.includes(b.color) ? b.color : 'yellow'
     });
     res.json(created);
   } catch (err) {
@@ -63,9 +67,14 @@ router.put('/highlights/:hid', (req, res) => {
   if (!getHighlight(hid)) return res.status(404).json({ error: t(lang, 'err.highlightNotFound') });
   try {
     const body = req.body || {};
-    const updated = updateHighlight(hid, {
-      comment: typeof body.comment === 'string' ? body.comment.trim() || null : null
-    });
+    const updates = {};
+    if (typeof body.comment === 'string') {
+      updates.comment = body.comment.trim() || null;
+    }
+    if (HIGHLIGHT_COLORS.includes(body.color)) {
+      updates.color = body.color;
+    }
+    const updated = updateHighlight(hid, updates);
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: t(lang, 'err.updateFailed', { msg: err.message }) });

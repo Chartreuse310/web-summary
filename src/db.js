@@ -127,6 +127,14 @@ db.exec(`
   `);
 }
 
+// 幂等加 color 列：多颜色高亮（yellow/blue/red），旧数据默认 yellow
+{
+  const cols = db.prepare('PRAGMA table_info(highlights)').all().map((c) => c.name);
+  if (!cols.includes('color')) {
+    db.exec("ALTER TABLE highlights ADD COLUMN color TEXT NOT NULL DEFAULT 'yellow'");
+  }
+}
+
 // ===== 行 → 对象（解析 JSON 字段）=====
 function rowToObj(row) {
   if (!row) return null;
@@ -405,6 +413,7 @@ function highlightRowToObj(row) {
     prefix: row.prefix,
     suffix: row.suffix,
     comment: row.comment,
+    color: row.color,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -415,12 +424,12 @@ function highlightRowToObj(row) {
  * @param {object} h { clippingId, exactText, prefix, suffix, comment? }
  * @returns {object} 新建的高亮对象
  */
-function insertHighlight({ clippingId, exactText, prefix, suffix, comment }) {
+function insertHighlight({ clippingId, exactText, prefix, suffix, comment, color }) {
   const now = new Date().toISOString();
   const result = db
     .prepare(
-      `INSERT INTO highlights (clipping_id, exact_text, prefix, suffix, comment, created_at, updated_at)
-       VALUES (@clippingId, @exactText, @prefix, @suffix, @comment, @now, @now)`
+      `INSERT INTO highlights (clipping_id, exact_text, prefix, suffix, comment, color, created_at, updated_at)
+       VALUES (@clippingId, @exactText, @prefix, @suffix, @comment, @color, @now, @now)`
     )
     .run({
       clippingId,
@@ -428,6 +437,7 @@ function insertHighlight({ clippingId, exactText, prefix, suffix, comment }) {
       prefix: prefix || '',
       suffix: suffix || '',
       comment: comment || null,
+      color: color || 'yellow',
       now: now
     });
   return getHighlight(result.lastInsertRowid);
@@ -447,13 +457,23 @@ function listHighlights(clippingId) {
 }
 
 /** 更新高亮评论 */
-function updateHighlight(id, { comment }) {
+function updateHighlight(id, { comment, color }) {
   const now = new Date().toISOString();
-  db.prepare('UPDATE highlights SET comment = @comment, updated_at = @now WHERE id = @id').run({
-    id,
-    comment: comment || null,
-    now
-  });
+  // comment 与 color 可独立更新（仅更新实际传入的字段）
+  if (comment !== undefined) {
+    db.prepare('UPDATE highlights SET comment = @comment, updated_at = @now WHERE id = @id').run({
+      id,
+      comment: comment || null,
+      now
+    });
+  }
+  if (color !== undefined) {
+    db.prepare('UPDATE highlights SET color = @color, updated_at = @now WHERE id = @id').run({
+      id,
+      color,
+      now
+    });
+  }
   return getHighlight(id);
 }
 

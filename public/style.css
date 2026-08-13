@@ -745,11 +745,13 @@ body {
 .hl-list-item {
   padding: 8px 10px;
   border-radius: 6px;
-  border-left: 3px solid var(--hl-color, #f3d27a);
+  border-left: 3px solid var(--hl-yellow);
   background: var(--surface);
   cursor: pointer;
   transition: background 0.15s;
 }
+.hl-list-item.hl-blue { border-left-color: var(--hl-blue); }
+.hl-list-item.hl-red { border-left-color: var(--hl-red); }
 .hl-list-item:hover { background: var(--paper-mid); }
 .hl-list-item-text {
   font-size: 12.5px;
@@ -1264,14 +1266,17 @@ body {
 
 /* ===== 高亮评论 ===== */
 :root {
-  --hl-color: #f3d27a;       /* 高亮底色 */
-  --hl-color-strong: #e8c24b;
+  --hl-yellow: #f3d27a;
+  --hl-yellow-strong: #e8c24b;
+  --hl-blue: #aed4f5;
+  --hl-blue-strong: #7fb8ee;
+  --hl-red: #f5b8b8;
+  --hl-red-strong: #ee9a9a;
   --hl-comment: #8b7355;
 }
 
-/* 正文高亮标记 */
+/* 正文高亮标记（三色变体）*/
 .reader-article mark.hl {
-  background: var(--hl-color);
   color: inherit;
   padding: 1px 2px;
   border-radius: 3px;
@@ -1279,38 +1284,47 @@ body {
   transition: background 0.15s, box-shadow 0.15s;
   border-bottom: 2px solid transparent;
 }
-.reader-article mark.hl:hover { background: var(--hl-color-strong); }
+.reader-article mark.hl-yellow { background: var(--hl-yellow); }
+.reader-article mark.hl-yellow:hover { background: var(--hl-yellow-strong); }
+.reader-article mark.hl-blue { background: var(--hl-blue); }
+.reader-article mark.hl-blue:hover { background: var(--hl-blue-strong); }
+.reader-article mark.hl-red { background: var(--hl-red); }
+.reader-article mark.hl-red:hover { background: var(--hl-red-strong); }
 .reader-article mark.hl.has-comment {
   border-bottom-color: var(--hl-comment);
 }
-.reader-article mark.hl.flash {
-  box-shadow: 0 0 0 3px rgba(232, 194, 75, 0.5);
-  transition: box-shadow 0.2s;
-}
+.reader-article mark.hl.flash { transition: box-shadow 0.2s; }
+.reader-article mark.hl-yellow.flash { box-shadow: 0 0 0 3px rgba(232, 194, 75, 0.5); }
+.reader-article mark.hl-blue.flash { box-shadow: 0 0 0 3px rgba(127, 184, 238, 0.5); }
+.reader-article mark.hl-red.flash { box-shadow: 0 0 0 3px rgba(238, 154, 154, 0.5); }
 
-/* 选中浮现的工具条 */
+/* 选中浮现的工具条：三色块选择 */
 .hl-toolbar {
   position: absolute;
   z-index: 260;
   background: var(--ink);
-  border-radius: 6px;
-  padding: 4px;
+  border-radius: 999px;
+  padding: 5px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   transform: translate(-50%, -100%);
+  display: flex;
+  gap: 6px;
 }
 .hl-toolbar[hidden] { display: none; }
-.hl-toolbar-btn {
-  border: none;
-  background: none;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 12px;
-  border-radius: 4px;
+.hl-color-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: transform 0.12s, border-color 0.12s;
 }
-.hl-toolbar-btn:hover { background: var(--forest-2); }
+.hl-color-btn:hover { transform: scale(1.15); border-color: #fff; }
+.hl-color-btn:disabled { opacity: 0.5; cursor: default; }
+.hl-color-btn.hl-yellow { background: var(--hl-yellow-strong); }
+.hl-color-btn.hl-blue { background: var(--hl-blue-strong); }
+.hl-color-btn.hl-red { background: var(--hl-red-strong); }
 
 /* 评论编辑浮窗 */
 .hl-popover {
@@ -1325,6 +1339,18 @@ body {
   transform: translate(-50%, 0);
 }
 .hl-popover[hidden] { display: none; }
+.hl-popover-colors {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.hl-popover-colors .hl-color-btn {
+  border-color: var(--rule-light);
+}
+.hl-popover-colors .hl-color-btn.active {
+  border-color: var(--ink-2);
+  transform: scale(1.1);
+}
 .hl-popover-input {
   width: 100%;
   border: 1px solid var(--rule-light);
