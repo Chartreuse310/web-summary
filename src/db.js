@@ -158,7 +158,12 @@ function rowToObj(row) {
     contentHtml: row.content_html,
     lang: row.lang || 'zh',
     savedAt: row.saved_at,
-    highlightCount: row.highlight_count != null ? row.highlight_count : 0
+    highlightCount: row.highlight_count != null ? row.highlight_count : 0,
+    highlightCounts: {
+      yellow: row.hl_yellow || 0,
+      blue: row.hl_blue || 0,
+      red: row.hl_red || 0
+    }
   };
 }
 
@@ -328,7 +333,10 @@ function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, 
   const rows = db
     .prepare(
       `SELECT c.*,
-              (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id) AS highlight_count
+              (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id) AS highlight_count,
+              (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id AND h.color = 'yellow') AS hl_yellow,
+              (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id AND h.color = 'blue') AS hl_blue,
+              (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id AND h.color = 'red') AS hl_red
        FROM clippings c ${whereSql} ${orderSql} LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit, offset });
@@ -345,7 +353,10 @@ function getClipping(id) {
     db
       .prepare(
         `SELECT c.*,
-                (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id) AS highlight_count
+                (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id) AS highlight_count,
+                (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id AND h.color = 'yellow') AS hl_yellow,
+                (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id AND h.color = 'blue') AS hl_blue,
+                (SELECT COUNT(*) FROM highlights h WHERE h.clipping_id = c.id AND h.color = 'red') AS hl_red
          FROM clippings c WHERE c.id = ?`
       )
       .get(id)

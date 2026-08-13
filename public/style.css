@@ -358,7 +358,8 @@ body {
 .clip-item:hover { box-shadow: var(--shadow); border-color: var(--rule-mid); }
 .clip-rank { font-size: 10px; color: var(--ink-5); font-variant-numeric: tabular-nums; padding-top: 4px; }
 .clip-main { min-width: 0; }
-.clip-title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; line-height: 1.4; }
+.clip-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; line-height: 1.4; }
+.clip-title-text { min-width: 0; }
 .clip-meta { font-size: 11px; color: var(--ink-4); margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px 12px; }
 .clip-oneliner {
   font-size: 13px;
@@ -1397,11 +1398,12 @@ body {
 }
 .hl-popover-delete:hover { text-decoration: underline; }
 
-/* 列表项高亮数 badge */
+/* 列表项高亮数 badge（三色：色点+数字，只显示 count>0）*/
 .clip-hl-count {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 5px;
+  flex-shrink: 0;
   background: var(--warm-light);
   color: var(--warm);
   border-radius: 8px;
@@ -1410,3 +1412,8 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
+.clip-hl-chip { display: inline-flex; align-items: center; gap: 2px; }
+.clip-hl-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.clip-hl-dot.hl-yellow { background: var(--hl-yellow-strong); }
+.clip-hl-dot.hl-blue { background: var(--hl-blue-strong); }
+.clip-hl-dot.hl-red { background: var(--hl-red-strong); }

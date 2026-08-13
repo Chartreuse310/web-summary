@@ -395,6 +395,18 @@
     if (clustersRes.ok) renderTimeClusters(clustersRes.d);
   }
 
+  /** 列表项三色高亮数 badge：色点+数字，只显示 count>0 的颜色 */
+  function hlCountBadgeHTML(counts) {
+    if (!counts) return '';
+    const parts = [];
+    ['yellow', 'blue', 'red'].forEach((c) => {
+      const n = counts[c] || 0;
+      if (n > 0) parts.push('<span class="clip-hl-chip"><span class="clip-hl-dot hl-' + c + '"></span>' + n + '</span>');
+    });
+    if (!parts.length) return '';
+    return '<span class="clip-hl-count" title="' + escapeHtml(t('reader.highlights') + t('hl.countSuffix')) + '">' + parts.join('') + '</span>';
+  }
+
   function renderLibrary(items) {
     if (!items.length) {
       libraryList.innerHTML = '<p class="empty-hint">' + escapeHtml(t('empty.libraryAlt')) + '</p>';
@@ -415,14 +427,12 @@
           .join('');
         const pct = ((it.totalTokens || 0) / maxTokens) * 100;
         const num = String(i + 1).padStart(2, '0');
-        const hlBadge = it.highlightCount
-          ? `<span class="clip-hl-count" title="${escapeHtml(t('reader.highlights') + t('hl.countSuffix'))}">🕯 ${it.highlightCount}</span>`
-          : '';
+        const hlBadge = hlCountBadgeHTML(it.highlightCounts);
         return `
           <div class="clip-item" data-id="${it.id}">
             <span class="clip-rank">${num}</span>
             <div class="clip-main">
-              <div class="clip-title">${escapeHtml(it.title)}${hlBadge}</div>
+              <div class="clip-title"><span class="clip-title-text">${escapeHtml(it.title)}</span>${hlBadge}</div>
               <div class="clip-meta">${meta}</div>
               ${it.oneliner ? `<div class="clip-oneliner">${escapeHtml(it.oneliner)}</div>` : ''}
               <div class="clip-footer">
@@ -1533,13 +1543,11 @@
           fmtDate(it.savedAt) && (t('meta.savedAtPrefix') + fmtDate(it.savedAt))
         ].filter(Boolean).join(' · ');
         const num = String(i + 1).padStart(2, '0');
-        const hlBadge = it.highlightCount
-          ? '<span class="clip-hl-count" title="' + escapeHtml(t('reader.highlights') + t('hl.countSuffix')) + '">🕯 ' + it.highlightCount + '</span>'
-          : '';
+        const hlBadge = hlCountBadgeHTML(it.highlightCounts);
         return '<div class="clip-item" data-id="' + it.id + '">' +
           '<span class="clip-rank">' + num + '</span>' +
           '<div class="clip-main">' +
-          '<div class="clip-title">' + escapeHtml(it.title) + hlBadge + '</div>' +
+          '<div class="clip-title"><span class="clip-title-text">' + escapeHtml(it.title) + '</span>' + hlBadge + '</div>' +
           '<div class="clip-meta">' + meta + '</div>' +
           (it.oneliner ? '<div class="clip-oneliner">' + escapeHtml(it.oneliner) + '</div>' : '') +
           '</div></div>';
