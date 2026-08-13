@@ -746,13 +746,16 @@
     while ((n = walker.nextNode())) textNodes.push(n);
     // 预拼接全文做一次 indexof，确定整体起始；再用节点逐一定位区间两端
     const full = textNodes.map((tn) => tn.nodeValue).join('');
-    const start = full.indexOf(needle);
-    if (start === -1) return false;
-    const end = start + (hl.prefix ? hl.prefix.length : 0) + hl.exactText.length;
+    const needleStart = full.indexOf(needle);
+    if (needleStart === -1) return [];
+    // needle = prefix + exactText + suffix；只包裹 exactText 段（跳过 prefix 上下文）
+    const start = needleStart + (hl.prefix ? hl.prefix.length : 0);
+    const end = start + hl.exactText.length;
 
     const range = document.createRange();
     let consumed = 0;
     let startSet = false;
+    let endSet = false;
     for (const tn of textNodes) {
       const len = tn.nodeValue.length;
       const nodeStart = consumed;
@@ -763,25 +766,55 @@
       }
       if (startSet && end > nodeStart && end <= nodeEnd) {
         range.setEnd(tn, end - nodeStart);
+        endSet = true;
         break;
       }
       consumed = nodeEnd;
     }
-    if (!startSet) return false;
+    if (!startSet || !endSet) return [];
 
-    try {
+    // 逐文本节点包裹：命中区间常跨越 <a>/<strong> 等内联标签边界，
+    // range.surroundContents 会因此抛错；改为每个相交文本节点各自切出子区间再包 <mark>。
+    return hlWrapRange(range, hl);
+  }
+
+  /**
+   * 在 Range 覆盖的每个文本节点上各自切出相交子区间并用 <mark> 包裹。
+   * 从后往前处理，避免 splitText 改动节点后续内容时影响尚未处理的节点引用。
+   * @returns {HTMLElement[]} 创建的 mark 元素（按文档顺序，同一条高亮可能多个）
+   */
+  function hlWrapRange(range, hl) {
+    const article = $('readerArticle');
+    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    });
+    const targets = []; // { node, start, end } 与 Range 相交的子区间
+    let tn;
+    while ((tn = walker.nextNode())) {
+      let s = 0;
+      let e = tn.nodeValue.length;
+      if (tn === range.startContainer) s = range.startOffset;
+      if (tn === range.endContainer) e = range.endOffset;
+      if (s < e) targets.push({ node: tn, start: s, end: e });
+    }
+    const created = [];
+    for (let i = targets.length - 1; i >= 0; i--) {
+      const { node, start, end } = targets[i];
+      // 先切尾部 [end,len)，再切头部 [0,start)，剩下的就是纯净的 [start,end) 节点
+      if (end < node.nodeValue.length) node.splitText(end);
+      if (start > 0) node.splitText(start);
+      const target = start > 0 ? node.nextSibling : node;
       const mark = document.createElement('mark');
       mark.className = 'hl' + (hl.comment ? ' has-comment' : '');
       mark.dataset.hid = String(hl.id);
       mark.dataset.exact = hl.exactText;
       if (hl.comment) mark.title = hl.comment;
-      range.surroundContents(mark);
       mark.addEventListener('click', (e) => { e.stopPropagation(); hlOpenPopover(hl, mark); });
-      return true;
-    } catch {
-      // surroundContents 在跨节点/边界（如选中跨标签）时会抛错；降级跳过该条
-      return false;
+      target.parentNode.insertBefore(mark, target);
+      mark.appendChild(target);
+      created.unshift(mark); // 逆序处理，unshift 还原为文档顺序
     }
+    return created;
   }
 
   /** 重新渲染文章中的所有高亮（先移除现有 mark 再逐一应用）*/
@@ -919,12 +952,11 @@
       if (!ok) throw new Error(resp.error || t('err.saveFailed'));
       // 应用包裹 + 刷新左栏
       sel.removeAllRanges();
-      hlApplyOne(resp);
+      const marks = hlApplyOne(resp);
       d.highlights = (d.highlights || []).concat([resp]);
       renderReaderHighlights(d.highlights);
-      // 立即弹出评论框（可选填写）
-      const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(String(resp.id)) + '"]');
-      if (mark) hlOpenPopover(resp, mark);
+      // 立即弹出评论框（可选填写），定位到首个 mark
+      if (marks[0]) hlOpenPopover(resp, marks[0]);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -970,11 +1002,11 @@
       const idx = d.highlights.findIndex((h) => h.id === hid);
       if (idx >= 0) d.highlights[idx] = resp;
     }
-    const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]');
-    if (mark) {
-      mark.classList.toggle('has-comment', !!resp.comment);
-      mark.title = resp.comment || '';
-    }
+    const marks = $('readerArticle').querySelectorAll('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]');
+    marks.forEach((m) => {
+      m.classList.toggle('has-comment', !!resp.comment);
+      m.title = resp.comment || '';
+    });
     hlClosePopover();
     if (d && d.highlights) renderReaderHighlights(d.highlights);
   }
@@ -991,13 +1023,13 @@
     if (d && d.highlights) {
       d.highlights = d.highlights.filter((h) => h.id !== hid);
     }
-    const mark = $('readerArticle').querySelector('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]');
-    if (mark) {
+    const marks = $('readerArticle').querySelectorAll('mark.hl[data-hid="' + CSS.escape(String(hid)) + '"]');
+    marks.forEach((mark) => {
       const parent = mark.parentNode;
       while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
       parent.removeChild(mark);
       parent.normalize();
-    }
+    });
     hlClosePopover();
     if (d && d.highlights) renderReaderHighlights(d.highlights);
   }
