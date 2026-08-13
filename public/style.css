@@ -1350,6 +1350,16 @@ body {
   padding: 6px 14px;
   font-size: 12px;
 }
+/* 三个按钮强制等高、文字垂直居中对齐（删除按钮是裸文字，与带背景的 btn 默认盒模型不一致）*/
+.hl-popover-actions button {
+  margin: 0; /* 清掉 .btn-primary 全局的 margin-top:16px，否则保存按钮会被推下去 */
+  height: 30px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
 .hl-popover-delete {
   border: none;
   background: none;
