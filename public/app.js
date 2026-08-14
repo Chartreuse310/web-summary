@@ -676,39 +676,79 @@
    * 2. DOM 无足够标题但 outline 字段有数据 → 降级为静态目录
    * 3. 两者都无 → 隐藏左栏
    */
+  /**
+   * 从中栏 DOM 收集大纲候选：H1-H4 标签 + 编号段落，按文档顺序合并、文本去重。
+   * 与后端 extractOutline 逻辑一致（微信等会混用 H 标签和编号段落做标题）。
+   * 返回 [{ el, level, text }]，el 为对应 DOM 元素（用于点击锚点）。
+   */
+  function collectOutlineFromDom(root) {
+    const candidates = [];
+    const numRe = /^(\d+(?:\.\d+)*)[\s.、．:：)]?\s*(.+)$/;
+    root.querySelectorAll('h1, h2, h3, h4').forEach((h) => {
+      const text = (h.textContent || '').trim();
+      if (!text || text.length > 80) return;
+      candidates.push({ el: h, level: h.tagName.toLowerCase(), text });
+    });
+    root.querySelectorAll('p, section').forEach((b) => {
+      const text = (b.textContent || '').trim();
+      if (!text || text.length > 80) return;
+      const m = text.match(numRe);
+      if (!m) return;
+      const title = m[2].trim();
+      if (!title || title.length > 50) return;
+      if ((title.match(/[，。；,;]/g) || []).length > 1) return;
+      const depth = m[1].split('.').length;
+      const level = depth === 1 ? 'h2' : depth === 2 ? 'h3' : 'h4';
+      candidates.push({ el: b, level, text: m[1] + ' ' + title });
+    });
+    candidates.sort((a, b) => {
+      if (a.el === b.el) return 0;
+      const rel = a.el.compareDocumentPosition(b.el);
+      if (rel & 4) return -1; // b 在 a 之后 → a 排前
+      if (rel & 2) return 1;  // b 在 a 之前 → a 排后
+      return 0;
+    });
+    const seen = new Set();
+    const out = [];
+    for (const c of candidates) {
+      if (seen.has(c.text)) continue;
+      seen.add(c.text);
+      out.push(c);
+    }
+    return out;
+  }
+
   function buildReaderToc(d) {
     const article = $('readerArticle');
     const toc = $('readerToc');
     const tocWrap = $('readerTocWrap');
-    const headings = article.querySelectorAll('h1, h2, h3, h4');
+    const items = collectOutlineFromDom(article);
 
-    if (headings.length >= 2) {
+    if (items.length >= 2) {
       setHidden(tocWrap, false);
       toc.innerHTML = '';
       const usedIds = new Set();
-
-      headings.forEach((h, i) => {
-        // 确保每个标题有唯一 id
-        let id = h.id;
+      items.forEach((it, i) => {
+        // 确保每个标题元素有唯一 id（用于锚点）
+        let id = it.el.id;
         if (!id) {
-          const text = (h.textContent || '').trim().slice(0, 40);
+          const text = (it.el.textContent || '').trim().slice(0, 40);
           id = 'h-' + text.replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase().replace(/^-|-$/g, '') || 'heading-' + i;
-          h.id = id;
+          it.el.id = id;
         }
         if (usedIds.has(id)) {
           id = id + '-' + i;
-          h.id = id;
+          it.el.id = id;
         }
         usedIds.add(id);
 
-        const level = h.tagName.toLowerCase();
         const link = document.createElement('a');
         link.href = '#' + id;
-        link.className = 'toc-link ' + level;
-        link.textContent = (h.textContent || '').trim().slice(0, 50);
+        link.className = 'toc-link ' + it.level;
+        link.textContent = it.text.slice(0, 50);
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          it.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
         toc.appendChild(link);
       });
@@ -1301,22 +1341,7 @@
    * 与后端 extractOutline 逻辑一致
    */
   function extractOutlineFromDom() {
-    const article = $('readerArticle');
-    const headings = article.querySelectorAll('h1, h2, h3, h4');
-    const outline = [];
-    const seen = new Set();
-
-    headings.forEach((h) => {
-      const text = (h.textContent || '').trim();
-      if (!text || text.length > 80) return;
-      const level = h.tagName.toLowerCase();
-      const key = level + '|' + text;
-      if (seen.has(key)) return;
-      seen.add(key);
-      outline.push({ level, text });
-    });
-
-    return outline;
+    return collectOutlineFromDom($('readerArticle')).map((c) => ({ level: c.level, text: c.text }));
   }
 
   /**

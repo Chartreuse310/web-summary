@@ -124,13 +124,9 @@ function extractMetadata(document, docUrl) {
 /**
  * 提取文章大纲：[{level, text}]
  *
- * 策略（分层 fallback，均在正文容器内查找，避免误抓文章标题）：
- *   1. 优先找语义化 H1-H6（普通博客、新闻、文档站）
- *      —— 但只有 ≥2 个时才采用；单个 H1 通常是文章标题，不是目录
- *   2. 若没有，找「带编号的段落」（微信、知乎等用样式的站点）
- *      —— 编号形如 1 / 1.1 / 1.1.1，是章节标题的强信号
- *
- * 注意：微信文章几乎不用 H 标签，而是用 <p> + 加粗 + 编号来做标题。
+ * 同时收集「H1-H4 语义标题」和「数字编号段落」并按文档顺序合并。
+ * 不再二选一：微信等站点常把两种形式混用（如「1/2」用 <section>、「3/4」用 <h3>），
+ * 互斥策略会漏掉其中一部分。合并后能覆盖两种形式，文本去重避免目录区/正文区重复。
  *
  * @param {Document|Element} root 正文容器或 document
  */
@@ -138,72 +134,50 @@ function extractOutline(root) {
   root = root || (typeof document !== 'undefined' ? document : null);
   if (!root) return [];
 
-  // ---- 策略 1：H1-H6 语义标签（需 ≥2 个才算有目录）----
-  const headings = root.querySelectorAll('h1, h2, h3, h4');
-  if (headings.length >= 2) {
-    const out = [];
-    const seen = new Set();
-    for (const h of headings) {
-      const text = (h.textContent || '').trim();
-      if (!text || text.length > 80) continue;
-      const level = h.tagName.toLowerCase();
-      const key = level + '|' + text;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ level, text });
-    }
-    if (out.length >= 2) return out;
-  }
-
-  // ---- 策略 2：带编号的段落（微信等样式标题站点）----
-  return extractOutlineFromNumberedParagraphs(root);
-}
-
-/**
- * 从带编号的 <p>/<section> 提取大纲
- * 匹配形如「1 标题」「2.1 标题」「1.1.1 标题」的段落
- */
-function extractOutlineFromNumberedParagraphs(root) {
-  const raw = [];
-  // root 已限定在正文容器内，直接找 p（微信用 p，也有站点用 section）
-  const blocks = root.querySelectorAll('p, section');
+  const candidates = [];
   const numRe = /^(\d+(?:\.\d+)*)[\s.、．:：)]?\s*(.+)$/;
 
-  for (const p of blocks) {
-    const text = (p.textContent || '').trim();
-    if (!text || text.length > 80) continue;
+  // 1) H1-H4 语义标题
+  root.querySelectorAll('h1, h2, h3, h4').forEach((h) => {
+    const text = (h.textContent || '').trim();
+    if (!text || text.length > 80) return;
+    candidates.push({ node: h, level: h.tagName.toLowerCase(), text });
+  });
+
+  // 2) 带编号的 p/section（微信等用样式而非 H 标签做标题）
+  root.querySelectorAll('p, section').forEach((b) => {
+    const text = (b.textContent || '').trim();
+    if (!text || text.length > 80) return;
     const m = text.match(numRe);
-    if (!m) continue;
-    const num = m[1];
+    if (!m) return;
     const title = m[2].trim();
-    if (!title || title.length > 50) continue; // 标题部分过长 → 是正文不是标题
-    // 跳过看起来像正文句子（含句号/逗号过多的）
-    if ((title.match(/[，。；,;]/g) || []).length > 1) continue;
-
-    const depth = num.split('.').length;
+    if (!title || title.length > 50) return; // 标题部分过长 → 像正文
+    if ((title.match(/[，。；,;]/g) || []).length > 1) return; // 含句号/逗号过多 → 像正文句子
+    const depth = m[1].split('.').length;
     const level = depth === 1 ? 'h2' : depth === 2 ? 'h3' : 'h4';
-    raw.push({ num, title, level, text: num + ' ' + title });
-  }
+    candidates.push({ node: b, level, text: m[1] + ' ' + title });
+  });
 
-  if (raw.length === 0) return [];
+  if (candidates.length < 2) return [];
 
-  // 去重：同一编号只保留第一条（文章可能在目录区和正文区都带编号）
-  const byNum = new Map();
-  for (const h of raw) {
-    if (!byNum.has(h.num)) byNum.set(h.num, h);
-  }
-
-  // 按编号数值排序：0 < 1 < 1.1 < 1.2 < 2 < 2.1 ...
-  return [...byNum.values()].sort((a, b) => {
-    const pa = a.num.split('.').map(Number);
-    const pb = b.num.split('.').map(Number);
-    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-      const va = pa[i] ?? 0;
-      const vb = pb[i] ?? 0;
-      if (va !== vb) return va - vb;
-    }
+  // 按文档顺序排序（H 与编号可能交错出现）
+  candidates.sort((a, b) => {
+    if (a.node === b.node) return 0;
+    const rel = a.node.compareDocumentPosition(b.node);
+    if (rel & 4) return -1; // b 在 a 之后 → a 排前
+    if (rel & 2) return 1;  // b 在 a 之前 → a 排后
     return 0;
   });
+
+  // 文本去重（同一标题可能在目录区和正文区都出现）
+  const seen = new Set();
+  const out = [];
+  for (const c of candidates) {
+    if (seen.has(c.text)) continue;
+    seen.add(c.text);
+    out.push({ level: c.level, text: c.text });
+  }
+  return out;
 }
 
 async function extractContent(rawUrl, lang) {
@@ -438,4 +412,4 @@ function sanitizeHtml(raw, baseUrl) {
   return root.innerHTML;
 }
 
-module.exports = { extractContent, validateUrl, sanitizeHtml };
+module.exports = { extractContent, validateUrl, sanitizeHtml, extractOutline };
