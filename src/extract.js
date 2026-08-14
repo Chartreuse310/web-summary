@@ -158,7 +158,7 @@ function extractOutline(root) {
     candidates.push({ node: b, level, text: m[1] + ' ' + title });
   });
 
-  if (candidates.length < 2) return [];
+  if (candidates.length < 1) return [];
 
   // 按文档顺序排序（H 与编号可能交错出现）
   candidates.sort((a, b) => {
@@ -353,6 +353,12 @@ function sanitizeHtml(raw, baseUrl) {
       // 项目 CSS 渲染，避免原文样式覆盖（微信等会把 font-family/font-size/letter-spacing
       // 混进 color: 开头的 style 里，导致字体不一致、代码块字体被改成非等宽）。
       // 加粗/斜体等强调靠 <strong>/<em> 语义标签 + 项目 CSS，不依赖 inline style。
+      // img：在清属性前把 data-src / data-original 回填到 src（微信等懒加载用 data-src，
+      // 而它在白名单外会被清掉，必须先读）
+      if (tag === 'img' && !child.getAttribute('src')) {
+        const ds = child.getAttribute('data-src') || child.getAttribute('data-original');
+        if (ds) child.setAttribute('src', ds);
+      }
       const attrs = Array.from(child.attributes);
       const keepAttrs = [];
       for (const attr of attrs) {
@@ -369,14 +375,16 @@ function sanitizeHtml(raw, baseUrl) {
       child.removeAttribute('onload');
       child.removeAttribute('onerror');
 
-      // 图片：src 解析为绝对地址
+      // 图片：src 绝对化（data-src 已在清属性前回填到 src）；无 src 的占位残骸移除
       if (tag === 'img') {
         const src = child.getAttribute('src');
-        if (src) {
-          try {
-            child.setAttribute('src', new URL(src, baseUrl).href);
-          } catch { /* 忽略非法 src */ }
+        if (!src) {
+          child.remove();
+          continue;
         }
+        try {
+          child.setAttribute('src', new URL(src, baseUrl).href);
+        } catch { /* 忽略非法 src */ }
         child.setAttribute('loading', 'lazy');
       }
       // 链接：href 解析 + 安全跳转

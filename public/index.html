@@ -143,6 +143,13 @@
           </div>
           <p class="settings-hint" data-i18n="settings.hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
           <div id="providerList" class="provider-list"></div>
+
+          <div class="settings-parsemode">
+            <span class="settings-parsemode-label" data-i18n="settings.parseMode">解析模式</span>
+            <label class="settings-radio"><input type="radio" name="parseMode" value="js" checked><span data-i18n="settings.parseModeJs">js 解析全文</span></label>
+            <label class="settings-radio"><input type="radio" name="parseMode" value="ai"><span data-i18n="settings.parseModeAi">AI 解析全文</span></label>
+            <p class="settings-parsemode-hint" data-i18n="settings.parseModeHint">js：规则解析（快、免费）；AI：在 js 基础上用 AI 增强大纲（更全但消耗 token）。</p>
+          </div>
         </div>
 
         <!-- 右：用量统计数字 -->

@@ -61,6 +61,38 @@ const SYSTEM_PROMPTS = {
     '5. Output JSON only — no markdown code fences, no explanation.'
 };
 
+// AI 大纲提取规范（辅助 js 解析：补规则漏掉的样式标题）
+const OUTLINE_PROMPTS = {
+  zh:
+    '你是一个文章大纲提取助手。从用户提供的文章正文里识别「章节/小节标题」，按出现顺序输出层级大纲。\n\n' +
+    '要识别的标题：\n' +
+    '1. 带编号的标题（1 / 1.1 / 一、 / 第一章 等）；\n' +
+    '2. 加粗或居中的独立短段落（微信、知乎等常用的样式标题）；\n' +
+    '3. 语义上的章节切换句（短、概括、独立成段）。\n\n' +
+    '层级：一级章节用 h2，章节内的小节用 h3。文章主标题不要收（它已单独提供）。\n\n' +
+    '不要收：\n' +
+    '- 超过 50 字的、或含多个句号/逗号（像正文句子的）；\n' +
+    '- 导航、广告、版权声明（如「点赞/在看/转发」「作者：xxx」「投稿邮箱」等）。\n\n' +
+    '只输出纯 JSON 数组，不要 markdown 包裹、不要解释：\n' +
+    '[{"level":"h2","text":"章节标题"},{"level":"h3","text":"小节标题"}]',
+  en:
+    'You are an article outline extractor. Identify chapter/section titles from the article body provided by the user, and output a hierarchical outline in order of appearance.\n\n' +
+    'Titles to identify:\n' +
+    '1. Numbered titles (1 / 1.1 / I. / Chapter 1, etc.);\n' +
+    '2. Bold or centered standalone short paragraphs (style-based titles common on blog platforms);\n' +
+    '3. Semantic section-transition lines (short, summarizing, standalone).\n\n' +
+    'Levels: top-level chapters use h2; sub-sections within a chapter use h3. Do not include the article main title (it is provided separately).\n\n' +
+    'Do not include:\n' +
+    '- Text over 50 chars, or with multiple commas/periods (reads like a sentence);\n' +
+    '- Navigation, ads, copyright notices (e.g. "like/share/subscribe", "Author: xxx", "contact email").\n\n' +
+    'Output a pure JSON array only — no markdown fences, no explanation:\n' +
+    '[{"level":"h2","text":"Chapter title"},{"level":"h3","text":"Sub-section title"}]'
+};
+
+function buildOutlinePrompt(lang) {
+  return OUTLINE_PROMPTS[lang] || OUTLINE_PROMPTS.zh;
+}
+
 function buildSystemPrompt(lang) {
   return SYSTEM_PROMPTS[lang] || SYSTEM_PROMPTS.zh;
 }
@@ -122,6 +154,58 @@ function resolveProvider({ provider, providerId, model, lang }) {
 }
 
 /**
+ * 通用 LLM 调用（OpenAI 兼容 chat/completions）
+ * 封装 fetch + 错误处理 + 取 content，供 summarize / extractOutlineByAi 复用。
+ */
+async function callChatCompletion(provider, model, messages, { temperature = 0.3, lang } = {}) {
+  let resp;
+  try {
+    resp = await fetch(`${provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(60000),
+      headers: {
+        'Authorization': `Bearer ${provider.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model, messages, temperature })
+    });
+  } catch (err) {
+    if (err.name === 'TimeoutError') {
+      throw makeError(lang, 'err.aiTimeout', null, 'timeout');
+    }
+    throw makeError(lang, 'err.aiRequestFailed', { msg: err.message }, 'fetch_failed');
+  }
+  if (!resp.ok) {
+    let detail = '';
+    try {
+      const errBody = await resp.json();
+      detail = errBody?.error?.message || errBody?.msg || JSON.stringify(errBody);
+    } catch {
+      detail = await resp.text().catch(() => '');
+    }
+    if (resp.status === 401) {
+      throw makeError(lang, 'err.aiAuthInvalid', { env: provider.apiKeyEnv || '' }, 'auth_invalid');
+    }
+    if (resp.status === 429) {
+      throw makeError(lang, 'err.aiRateLimit', null, 'rate_limit');
+    }
+    if (resp.status === 403) {
+      if (/not allowed|access model|team/i.test(detail)) {
+        throw makeError(lang, 'err.aiModelAccess', { model }, 'access_denied');
+      }
+      throw makeError(lang, 'err.aiAccessDenied', { detail }, 'access_denied');
+    }
+    throw makeError(lang, 'err.aiHttpError', { status: resp.status, detail }, 'http_error');
+  }
+  const data = await resp.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw makeError(lang, 'err.aiEmpty', null, 'bad_request');
+  }
+  return { content, usage: data.usage || null };
+}
+
+/**
  * 调用 LLM 生成摘要
  * @param {object} opts
  *   - provider: {baseUrl, apiKey, name?, models?} 前端传入的无状态配置（优先）
@@ -151,60 +235,10 @@ async function summarize(opts) {
     }
   ];
 
-  let resp;
-  try {
-    resp = await fetch(`${provider.baseUrl}/chat/completions`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(60000), // 模型生成留足时间
-      headers: {
-        'Authorization': `Bearer ${provider.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.3 // 摘要任务偏低温度，保证稳定
-      })
-    });
-  } catch (err) {
-    if (err.name === 'TimeoutError') {
-      throw makeError(lang, 'err.aiTimeout', null, 'timeout');
-    }
-    throw makeError(lang, 'err.aiRequestFailed', { msg: err.message }, 'fetch_failed');
-  }
-
-  if (!resp.ok) {
-    let detail = '';
-    try {
-      const errBody = await resp.json();
-      detail = errBody?.error?.message || errBody?.msg || JSON.stringify(errBody);
-    } catch {
-      detail = await resp.text().catch(() => '');
-    }
-    if (resp.status === 401) {
-      throw makeError(lang, 'err.aiAuthInvalid', { env: provider.apiKeyEnv || '' }, 'auth_invalid');
-    }
-    if (resp.status === 429) {
-      throw makeError(lang, 'err.aiRateLimit', null, 'rate_limit');
-    }
-    if (resp.status === 403) {
-      // 常见情况：账号无权访问该模型（team not allowed to access model）
-      if (/not allowed|access model|team/i.test(detail)) {
-        throw makeError(lang, 'err.aiModelAccess', { model }, 'access_denied');
-      }
-      throw makeError(lang, 'err.aiAccessDenied', { detail }, 'access_denied');
-    }
-    throw makeError(lang, 'err.aiHttpError', { status: resp.status, detail }, 'http_error');
-  }
-
-  const data = await resp.json();
-  const rawContent = data?.choices?.[0]?.message?.content;
-  if (!rawContent) {
-    throw makeError(lang, 'err.aiEmpty', null, 'bad_request');
-  }
-
-  // usage 字段：{ prompt_tokens, completion_tokens, total_tokens }
-  const usage = data.usage || null;
+  const { content: rawContent, usage } = await callChatCompletion(provider, model, messages, {
+    temperature: 0.3, // 摘要任务偏低温度，保证稳定
+    lang
+  });
 
   // 解析 AI 返回的 JSON {oneliner, summary, tags}
   const parsed = parseSummaryJson(rawContent);
@@ -241,4 +275,61 @@ function parseSummaryJson(raw) {
   }
 }
 
-module.exports = { summarize, resolveProvider, flattenModels };
+/**
+ * 调用 LLM 从正文提取大纲（AI 辅助解析：补 js 规则漏掉的样式标题）
+ * 失败时抛错（含 code），由调用方（server.js）try/catch 兜底回 js outline。
+ * @returns {Promise<Array<{level, text}>|null>} 大纲数组；解析失败返回 null
+ */
+async function extractOutlineByAi(opts) {
+  const { provider: providerArg, providerId, model, text, title, lang } = opts;
+  const provider = resolveProvider({ provider: providerArg, providerId, model, lang });
+
+  if (provider.models) {
+    const allModels = flattenModels(provider.models);
+    if (allModels.length > 0 && !allModels.includes(model)) {
+      throw makeError(lang, 'err.modelNotSupported', { name: provider.name, model }, 'bad_request');
+    }
+  }
+
+  const messages = [
+    { role: 'system', content: buildOutlinePrompt(lang) },
+    {
+      role: 'user',
+      content: lang === 'en'
+        ? `Title: ${title}\n\nBody:\n${text}`
+        : `标题：${title}\n\n正文：\n${text}`
+    }
+  ];
+
+  const { content } = await callChatCompletion(provider, model, messages, {
+    temperature: 0.2, // 大纲提取要稳
+    lang
+  });
+
+  return parseOutlineJson(content);
+}
+
+/**
+ * 解析 AI 返回的大纲 JSON：[{level, text}]
+ * 容错：剥离 markdown 包裹；非法返回 null（由调用方走 js 兜底）。
+ */
+function parseOutlineJson(raw) {
+  let text = raw.trim();
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) text = fenceMatch[1].trim();
+  try {
+    const arr = JSON.parse(text);
+    if (!Array.isArray(arr)) return null;
+    return arr
+      .filter((x) => x && typeof x === 'object')
+      .map((x) => ({
+        level: x.level === 'h3' ? 'h3' : 'h2', // 只接受 h2/h3
+        text: typeof x.text === 'string' ? x.text.trim().slice(0, 80) : ''
+      }))
+      .filter((x) => x.text);
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { summarize, extractOutlineByAi, resolveProvider, flattenModels };

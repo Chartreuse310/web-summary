@@ -108,6 +108,12 @@
     localStorage.setItem(PROVIDER_KEY, JSON.stringify(list));
   }
 
+  // ===== 解析模式（localStorage：js 规则 / ai 辅助大纲）=====
+  const PARSE_MODE_KEY = 'web-summary:parseMode';
+  function getParseMode() {
+    return localStorage.getItem(PARSE_MODE_KEY) === 'ai' ? 'ai' : 'js';
+  }
+
   /** 启用的服务商（enabled !== false） */
   function activeProviders() {
     return loadProviders().filter((p) => p.enabled !== false && p.apiKey);
@@ -188,6 +194,7 @@
           url,
           provider: { baseUrl: provider.baseUrl, apiKey: provider.apiKey, name: provider.name, models: provider.models },
           model,
+          parseMode: getParseMode(),
           lang: I18n.getLang()
         })
       });
@@ -724,7 +731,7 @@
     const tocWrap = $('readerTocWrap');
     const items = collectOutlineFromDom(article);
 
-    if (items.length >= 2) {
+    if (items.length >= 1) {
       setHidden(tocWrap, false);
       toc.innerHTML = '';
       const usedIds = new Set();
@@ -752,14 +759,17 @@
         });
         toc.appendChild(link);
       });
-    } else if (d.outline && d.outline.length >= 2) {
+    } else if (d.outline && d.outline.length >= 1) {
       // 降级：静态目录（不可点击，仅参考）
       setHidden(tocWrap, false);
       toc.innerHTML = d.outline
         .map((h) => '<div class="toc-static ' + h.level + '">' + escapeHtml(h.text) + '</div>')
         .join('');
     } else {
-      setHidden(tocWrap, true);
+      // 左栏始终保留：无目录时目录区为空，但保留「目录/高亮」切换入口；
+      // 绝不能 hidden 整个左栏——display:none 会让它不占 grid 网格，
+      // 导致中栏(正文)/右栏(信息)前移、三栏错位
+      setHidden(tocWrap, false);
       toc.innerHTML = '';
     }
   }
@@ -1847,6 +1857,16 @@
 
   // ============ 事件绑定 ============
   function initEvents() {
+    // 解析模式单选：读 localStorage 设选中，change 时写回
+    const parseModeRadios = document.querySelectorAll('input[name="parseMode"]');
+    const savedMode = localStorage.getItem(PARSE_MODE_KEY) || 'js';
+    parseModeRadios.forEach((r) => { r.checked = (r.value === savedMode); });
+    parseModeRadios.forEach((r) => {
+      r.addEventListener('change', () => {
+        if (r.checked) localStorage.setItem(PARSE_MODE_KEY, r.value);
+      });
+    });
+
     summarizeBtn.addEventListener('click', handleSummarize);
     urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSummarize(); });
     saveBtn.addEventListener('click', handleSave);

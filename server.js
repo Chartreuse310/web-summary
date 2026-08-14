@@ -13,7 +13,7 @@ const express = require('express');
 
 const { providers } = require('./config/providers');
 const { extractContent } = require('./src/extract');
-const { summarize } = require('./src/llm');
+const { summarize, extractOutlineByAi } = require('./src/llm');
 const { calcUsage } = require('./src/usage');
 // 引入 db 模块会自动建表（src/db.js 顶层执行）
 require('./src/db');
@@ -39,7 +39,7 @@ app.get('/api/provider-presets', (req, res) => {
 app.post('/api/summarize', async (req, res) => {
   const lang = pickLang(req);
   try {
-    const { url, provider, providerId, model } = req.body || {};
+    const { url, provider, providerId, model, parseMode } = req.body || {};
     if (!url) return res.status(400).json({ error: t(lang, 'err.urlRequired') });
     if (!model) return res.status(400).json({ error: t(lang, 'err.modelRequired') });
     if (!provider && !providerId) {
@@ -48,6 +48,19 @@ app.post('/api/summarize', async (req, res) => {
 
     // 1. 抓取 + 元数据 + 大纲
     const extracted = await extractContent(url, lang);
+
+    // AI 辅助大纲（可选）：parseMode='ai' 时用 LLM 重新提取，
+    // 补 js 规则漏掉的样式标题（加粗短段落等）；失败回退 js 解析的 outline
+    if (parseMode === 'ai') {
+      try {
+        const aiOutline = await extractOutlineByAi({
+          provider, providerId, model, text: extracted.text, title: extracted.title, lang
+        });
+        if (aiOutline && aiOutline.length >= 2) extracted.outline = aiOutline;
+      } catch (e) {
+        console.warn('[parseMode=ai] AI 大纲提取失败，回退 js outline：', e.message);
+      }
+    }
 
     // 2. AI 总结（provider 优先来自前端 localStorage，providerId 兜底 .env）
     const llmResult = await summarize({
