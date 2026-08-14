@@ -56,8 +56,8 @@ class TrendChart {
       return;
     }
 
-    // 填充缺失日期为连续序列（按天）
-    const series = this._fillDates(points, metric);
+    // 填充缺失日期为连续序列（按天，固定最近 N 天窗口）
+    const series = this._fillDates(points, metric, opts.days || 30);
     const values = series.map((p) => p.value);
     const maxV = Math.max(1, ...values);
 
@@ -125,23 +125,36 @@ class TrendChart {
   /**
    * 把数据按天补全（缺失日期填 0），返回 [{date, value}]
    */
-  _fillDates(points, metric) {
+  _fillDates(points, metric, days = 30) {
     if (points.length === 0) return [];
     const map = new Map();
     for (const p of points) {
       map.set(p.date, p[metric] || 0);
     }
-    // 日期范围：最早 ~ 今天
-    const dates = points.map((p) => p.date).sort();
-    const start = dates[0];
-    const end = dates[dates.length - 1];
+    // 固定窗口：最近 N 天（截止今天）。固定宽度保证柱宽适中，
+    // 而不是从最早数据点开始——数据少时柱会被拉得很宽
+    const ds = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    const endD = new Date(); // 本地今天
+    const end = new Date(endD.getFullYear(), endD.getMonth(), endD.getDate());
+    const start = new Date(end);
+    start.setDate(start.getDate() - (days - 1));
+    const endKey = ds(end);
+    const startKey = ds(start);
     const out = [];
-    const cur = new Date(start + 'T00:00:00');
-    const endD = new Date(end + 'T00:00:00');
-    while (cur <= endD) {
-      const ds = cur.toISOString().slice(0, 10);
-      out.push({ date: ds, value: map.has(ds) ? map.get(ds) : 0 });
+    const cur = new Date(start);
+    while (cur <= end) {
+      const key = ds(cur);
+      out.push({ date: key, value: map.has(key) ? map.get(key) : 0 });
       cur.setDate(cur.getDate() + 1);
+    }
+    // 数据里有超出窗口的日期（理论不该有，防御）：并入首日避免丢量
+    for (const [k, v] of map) {
+      if (k < startKey || k > endKey) out[0].value += v;
     }
     return out;
   }

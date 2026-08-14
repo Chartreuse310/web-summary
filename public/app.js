@@ -562,6 +562,13 @@
   }
   function pad2(n) { return String(n).padStart(2, '0'); }
 
+  /** 'YYYY-MM-DD' + n 天（纯日期运算；避免 toISOString 的 UTC 偏移把东八区前移一天） */
+  function addDaysLocal(dateStr, n) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const end = new Date(y, m - 1, d + n); // 本地零点 + n 天
+    return end.getFullYear() + '-' + pad2(end.getMonth() + 1) + '-' + pad2(end.getDate());
+  }
+
   function applyTimeFilter(grp, key) {
     let from, to, label;
     if (grp === 'byYear') {
@@ -577,14 +584,12 @@
       label = key;
     } else if (grp === 'byWeek') {
       from = key;
-      const end = new Date(new Date(key + 'T00:00:00').getTime() + 7 * 86400000);
-      to = end.toISOString().slice(0, 10);
+      to = addDaysLocal(key, 7);
       label = fmtWeekLabel(key);
     } else {
       // byDay
       from = key;
-      const end = new Date(new Date(key + 'T00:00:00').getTime() + 86400000);
-      to = end.toISOString().slice(0, 10);
+      to = addDaysLocal(key, 1);
       label = key;
     }
 
@@ -1752,8 +1757,10 @@
     setHidden(canvas, false);
     setHidden(empty, true);
     const colors = { tokens: '#2d5a3d', cost: '#8b7355', count: '#db3d43' };
+    // 窄页面（中屏折叠为单列时）只看最近 7 天，保证柱宽适中
+    const days = canvas.getBoundingClientRect().width < 640 ? 7 : 30;
     const chart = new TrendChart(canvas);
-    chart.render(state.trendData, { metric: state.trendMetric, color: colors[state.trendMetric] });
+    chart.render(state.trendData, { metric: state.trendMetric, color: colors[state.trendMetric], days });
   }
 
   // ============ 设置页：服务商 CRUD ============
@@ -2119,5 +2126,11 @@
   // 滑块定位依赖按钮实际宽度：等字体渲染完成后再放 thumb，并跟随窗口缩放
   requestAnimationFrame(updateSortThumb);
   window.addEventListener('resize', updateSortThumb);
+  // 用量趋势按宽度切 7/30 天窗口，缩放时重画（节流）
+  let trendResizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(trendResizeTimer);
+    trendResizeTimer = setTimeout(drawTrend, 200);
+  });
   document.fonts && document.fonts.ready.then(updateSortThumb);
 })();

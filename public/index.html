@@ -146,22 +146,21 @@
               <button type="button" data-lang="en">EN</button>
             </div>
           </div>
-          <div class="settings-header">
-            <span class="stats-title" data-i18n="settings.provider">服务商配置</span>
-            <button id="addProviderBtn" class="btn-secondary" type="button" data-i18n="btn.addProvider">+ 添加服务商</button>
-          </div>
-          <p class="settings-hint" data-i18n="settings.hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
-          <div id="providerList" class="provider-list"></div>
-
-          <div class="settings-parsemode">
+          <div class="settings-lang">
             <span class="settings-parsemode-label" data-i18n="settings.parseMode">解析模式</span>
             <div class="sort-track" id="parseModeTrack">
               <span class="sort-thumb" id="parseModeThumb" aria-hidden="true"></span>
               <button type="button" class="sort-btn active" data-mode="js" data-i18n="settings.parseModeJs">js 解析全文</button>
               <button type="button" class="sort-btn" data-mode="ai" data-i18n="settings.parseModeAi">AI 解析全文</button>
             </div>
-            <p class="settings-parsemode-hint" data-i18n="settings.parseModeHint">js：规则解析（快、免费）；AI：在 js 基础上用 AI 增强大纲（更全但消耗 token）。</p>
           </div>
+          <p class="settings-parsemode-hint" data-i18n="settings.parseModeHint">js：规则解析（快、免费）；AI：在 js 基础上用 AI 增强大纲（更全但消耗 token）。</p>
+          <div class="settings-header">
+            <span class="stats-title" data-i18n="settings.provider">服务商配置</span>
+            <button id="addProviderBtn" class="btn-secondary" type="button" data-i18n="btn.addProvider">+ 添加服务商</button>
+          </div>
+          <p class="settings-hint" data-i18n="settings.hint">API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。</p>
+          <div id="providerList" class="provider-list"></div>
         </div>
 
         <!-- 右：用量统计数字 -->
