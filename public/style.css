@@ -335,30 +335,47 @@ body {
 }
 .search-row .url-input { flex: 1; }
 
-/* 排序分段按钮（搜索行右侧） */
+/* 排序分段控件（搜索行右侧）：滑块式分段，选中项由滑动的 thumb 承载 */
 .sort-group {
   display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--rule-light);
-  border-radius: 6px;
-  overflow: hidden;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
+.sort-track {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  background: var(--paper-mid);
+  border: 1px solid var(--rule-light);
+  border-radius: 999px;
+}
+.sort-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  background: var(--forest);
+  border-radius: 999px;
+  transition: left 0.2s ease, width 0.2s ease;
+}
 .sort-btn {
+  position: relative;
+  z-index: 1;
   border: none;
-  border-radius: 0;
   background: transparent;
   color: var(--ink-3);
   padding: 0 12px;
-  height: 36px;
+  height: 30px;
   font-size: 13px;
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
 }
-.sort-btn + .sort-btn { border-left: 1px solid var(--rule-light); }
-.sort-btn:hover { background: var(--primary-light); color: var(--primary); }
-.sort-btn.active { background: var(--forest); color: #fff; }
+.sort-btn:hover { color: var(--primary); }
+.sort-btn.active { color: #fff; }
 .sort-btn.sort-dir { min-width: 36px; padding: 0; font-weight: 700; }
 .filter-badges { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -667,7 +684,8 @@ body {
   .stat-big:last-child { border-bottom: 0; }
   .search-row { flex-wrap: wrap; }
   .sort-group { order: 3; width: 100%; }
-  .sort-btn { flex: 1; }
+  .sort-track { flex: 1; }
+  .sort-track .sort-btn { flex: 1; }
   .title { font-size: 22px; }
   .tab { font-size: 12px; padding: 8px 4px; }
 }

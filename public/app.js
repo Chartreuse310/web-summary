@@ -54,7 +54,12 @@
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + name));
     if (name === 'home') loadHome();
-    if (name === 'library') loadLibrary();
+    if (name === 'library') {
+      loadLibrary();
+      // 面板此前若处于 display:none，offsetWidth 为 0，滑块定位无效；
+      // 面板显示后需重新校准
+      requestAnimationFrame(updateSortThumb);
+    }
     if (name === 'settings') { renderProviderList(); loadStats(); }
   }
 
@@ -497,6 +502,15 @@
     sortDirBtn.textContent = desc ? '↓' : '↑';
     sortDirBtn.title = t(desc ? 'sort.desc' : 'sort.asc');
     sortDirBtn.setAttribute('data-i18n-title', desc ? 'sort.desc' : 'sort.asc');
+  }
+
+  /** 滑块式分段控件：把 thumb 移到当前选中排序键下方 */
+  function updateSortThumb() {
+    const thumb = $('sortThumb');
+    const active = sortGroup.querySelector('.sort-btn.active');
+    if (!thumb || !active) return;
+    thumb.style.left = active.offsetLeft + 'px';
+    thumb.style.width = active.offsetWidth + 'px';
   }
 
   // ===== 时间聚类渲染 + 筛选（剪藏库左栏）=====
@@ -1910,6 +1924,7 @@
         if (state.sortKey === btn.dataset.sort) return;
         state.sortKey = btn.dataset.sort;
         sortGroup.querySelectorAll('.sort-btn[data-sort]').forEach((b) => b.classList.toggle('active', b === btn));
+        updateSortThumb();
         loadLibrary();
       });
     });
@@ -2044,8 +2059,9 @@
   /** 切换语言后按当前所在视图重渲染动态内容 */
   function onLangChange() {
     syncLangToggle();
-    // 重新渲染动态文案（排序方向 title、标签筛选卡片等）
+    // 重新渲染动态文案（排序方向 title、标签筛选卡片等）；排序键文案宽度会变，滑块需重定位
     updateSortDirBtn();
+    requestAnimationFrame(updateSortThumb);
     if (state.tagFilter) {
       tagFilterBadge.innerHTML = escapeHtml(t('badge.tagFilter')) + escapeHtml(state.tagFilter) +
         '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
@@ -2086,4 +2102,8 @@
   initEvents();
   loadConfig();
   loadHome();
+  // 滑块定位依赖按钮实际宽度：等字体渲染完成后再放 thumb，并跟随窗口缩放
+  requestAnimationFrame(updateSortThumb);
+  window.addEventListener('resize', updateSortThumb);
+  document.fonts && document.fonts.ready.then(updateSortThumb);
 })();

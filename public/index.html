@@ -105,9 +105,12 @@
               <input type="search" id="searchInput" class="url-input"
                      placeholder="搜索标题/摘要/作者…" autocomplete="off" data-i18n-ph="search.placeholder" />
               <div class="sort-group" id="sortGroup">
-                <button type="button" class="sort-btn active" data-sort="recent" data-i18n="sort.recent">最近保存</button>
-                <button type="button" class="sort-btn" data-sort="tokens" data-i18n="sort.tokens">Token 用量</button>
-                <button type="button" class="sort-btn" data-sort="cost" data-i18n="sort.cost">费用</button>
+                <div class="sort-track">
+                  <span class="sort-thumb" id="sortThumb" aria-hidden="true"></span>
+                  <button type="button" class="sort-btn active" data-sort="recent" data-i18n="sort.recent">最近保存</button>
+                  <button type="button" class="sort-btn" data-sort="tokens" data-i18n="sort.tokens">Token 用量</button>
+                  <button type="button" class="sort-btn" data-sort="cost" data-i18n="sort.cost">费用</button>
+                </div>
                 <button type="button" class="sort-btn sort-dir" id="sortDirBtn" data-i18n-title="sort.desc">↓</button>
               </div>
               <button id="refreshBtn" class="btn-secondary" type="button" data-i18n="btn.refresh">刷新</button>
