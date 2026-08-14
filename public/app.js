@@ -41,6 +41,7 @@
     timeFilter: null,             // 剪藏库时间聚类筛选 { from, to, label, grp, key }
     tagFilter: '',                // 剪藏库右栏标签筛选
     authorFilter: '',             // 剪藏库右栏作者筛选（'__none__' 表示未知作者）
+    platformFilter: '',           // 剪藏库左栏平台筛选（'__none__' 表示未知平台）
     sortKey: 'recent',            // 排序键：recent | tokens | cost
     sortOrder: 'desc'             // 排序方向：desc 倒序 | asc 正序
   };
@@ -396,6 +397,7 @@
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (state.tagFilter) params.set('tag', state.tagFilter);
     if (state.authorFilter) params.set('author', state.authorFilter);
+    if (state.platformFilter) params.set('platform', state.platformFilter);
     if (state.sortKey) params.set('sort', state.sortKey);
     params.set('order', state.sortOrder);
     if (state.timeFilter) {
@@ -409,7 +411,7 @@
     ]);
     if (!listRes.ok) { libraryList.innerHTML = '<p class="empty-hint">' + escapeHtml(t('err.loadFailed')) + '</p>'; return; }
     renderLibrary(listRes.d.items);
-    if (statsRes.ok) renderLibraryRails(statsRes.d);
+    if (statsRes.ok) { renderLibraryRails(statsRes.d); renderPlatformList(statsRes.d); }
     if (clustersRes.ok) renderTimeClusters(clustersRes.d);
   }
 
@@ -669,6 +671,50 @@
       '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
     setHidden(badge, false);
     badge.querySelector('.clear-time').addEventListener('click', clearAuthorFilter);
+  }
+
+  /** 左栏平台筛选：与时间聚类同款交互——高亮 + 中间带关闭按钮的卡片 */
+  function renderPlatformList(stats) {
+    const wrap = $('platformList');
+    const platforms = (stats.byPlatform || []).slice(0, 15);
+    wrap.innerHTML = platforms.length
+      ? platforms.map((p) => {
+        // 「未知」是统计端给空 platform 的合成标签，筛选走 __none__ 哨兵值
+        const unknown = p.platform === t('dist.unknown');
+        const value = unknown ? '__none__' : p.platform;
+        const active = state.platformFilter === value ? ' active' : '';
+        return '<div class="cluster-item' + active + '" data-platform="' + escapeHtml(value) + '" data-label="' + escapeHtml(p.platform) + '"><span class="cluster-name">' + escapeHtml(p.platform) + '</span><span class="cluster-count">' + p.count + '</span></div>';
+      }).join('')
+      : '<p class="empty-hint">' + escapeHtml(t('empty.data')) + '</p>';
+
+    wrap.querySelectorAll('.cluster-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        if (state.platformFilter === el.dataset.platform) clearPlatformFilter();
+        else applyPlatformFilter(el.dataset.platform, el.dataset.label);
+      });
+    });
+  }
+
+  function applyPlatformFilter(platform, label) {
+    if (!platform) return;
+    state.platformFilter = platform;
+    renderPlatformBadge(label || platform);
+    loadLibrary();
+  }
+
+  function clearPlatformFilter() {
+    state.platformFilter = '';
+    setHidden($('platformFilterBadge'), true);
+    $('platformFilterBadge').innerHTML = '';
+    loadLibrary();
+  }
+
+  function renderPlatformBadge(label) {
+    const badge = $('platformFilterBadge');
+    badge.innerHTML = escapeHtml(t('badge.platformFilter')) + escapeHtml(label) +
+      '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
+    setHidden(badge, false);
+    badge.querySelector('.clear-time').addEventListener('click', clearPlatformFilter);
   }
 
   // ============ 阅读页（三栏视图）============
@@ -2122,6 +2168,10 @@
       // 找回展示用标签（'__none__' 显示为「未知」）
       const row = $('libAuthorRank').querySelector('.rank-row-mini.active');
       renderAuthorBadge(row ? row.dataset.label : state.authorFilter);
+    }
+    if (state.platformFilter) {
+      const row = $('platformList').querySelector('.cluster-item.active');
+      renderPlatformBadge(row ? row.dataset.label : state.platformFilter);
     }
     // 按当前 Tab 刷新对应数据
     if ($('panel-home').classList.contains('active')) loadHome();

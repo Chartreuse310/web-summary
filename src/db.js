@@ -295,7 +295,7 @@ function insertClipping(d) {
 /**
  * 列表查询（带搜索、tag 筛选、分页）
  */
-function listClippings({ q, tag, author, sort = 'recent', order = 'desc', limit = 50, offset = 0, from, to, lang } = {}) {
+function listClippings({ q, tag, author, platform, sort = 'recent', order = 'desc', limit = 50, offset = 0, from, to, lang } = {}) {
   const where = [];
   const params = {};
 
@@ -319,6 +319,13 @@ function listClippings({ q, tag, author, sort = 'recent', order = 'desc', limit 
   } else if (author) {
     where.push('author LIKE @author');
     params.author = `%"${author.replace(/"/g, '\\"')}"%`;
+  }
+  if (platform === '__none__') {
+    // 「未知平台」：platform 为空的剪藏
+    where.push(`(platform IS NULL OR platform = '')`);
+  } else if (platform) {
+    where.push('platform = @platform');
+    params.platform = platform;
   }
   if (from) {
     where.push('saved_at >= @from');

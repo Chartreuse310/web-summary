@@ -62,6 +62,7 @@ router.get('/', (req, res) => {
       q: req.query.q,
       tag: req.query.tag,
       author: req.query.author,
+      platform: req.query.platform,
       sort: req.query.sort,
       order: req.query.order,
       limit: parseInt(req.query.limit, 10) || 50,
