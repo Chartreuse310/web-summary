@@ -383,7 +383,11 @@ function sanitizeHtml(raw, baseUrl) {
           continue;
         }
         try {
-          child.setAttribute('src', new URL(src, baseUrl).href);
+          // 已本地化的图片（/images/...）跳过绝对化，避免重新解析/编辑保存时
+          // 被错误拼成原文章域名下的路径
+          if (!/^\/images\//.test(src)) {
+            child.setAttribute('src', new URL(src, baseUrl).href);
+          }
         } catch { /* 忽略非法 src */ }
         child.setAttribute('loading', 'lazy');
       }

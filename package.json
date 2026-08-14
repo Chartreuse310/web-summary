@@ -1,6 +1,6 @@
 {
   "name": "web-summary",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "网页总结工具：抓取网页 → AI 生成中文摘要，支持多模型切换、Token 监控与费用估算",
   "main": "server.js",
   "type": "commonjs",

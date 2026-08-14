@@ -22,12 +22,15 @@ const clippingsRouter = require('./src/router/clippings');
 const statsRouter = require('./src/router/stats');
 const highlightsRouter = require('./src/router/highlights');
 const { t, pickLang } = require('./src/i18n');
+const { downloadImages } = require('./src/images');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+// 本地化的正文图片（data/images），微信等防盗链站点下载后走本地路径
+app.use('/images', express.static(path.join(__dirname, 'data', 'images')));
 
 // 服务商预设模板（供前端做种子，用户在设置里填 Key 后启用）
 // 不暴露 .env 是否配置——前端配置以 localStorage 为准
@@ -60,6 +63,14 @@ app.post('/api/summarize', async (req, res) => {
       } catch (e) {
         console.warn('[parseMode=ai] AI 大纲提取失败，回退 js outline：', e.message);
       }
+    }
+
+    // 1.5 图片本地化：防盗链站点（微信等）的 <img> 下载到本地并改写 src；
+    // 失败的图保留远程地址，不阻塞主流程
+    try {
+      extracted.contentHtml = await downloadImages(extracted.contentHtml);
+    } catch (e) {
+      console.warn('[images] 图片本地化失败：', e.message);
     }
 
     // 2. AI 总结（provider 优先来自前端 localStorage，providerId 兜底 .env）
