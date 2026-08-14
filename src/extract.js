@@ -375,17 +375,16 @@ function sanitizeHtml(raw, baseUrl) {
         continue;
       }
 
-      // 清属性：只保留白名单属性
+      // 清属性：只保留白名单属性。inline style 一律清除——字体/颜色/排版统一交给
+      // 项目 CSS 渲染，避免原文样式覆盖（微信等会把 font-family/font-size/letter-spacing
+      // 混进 color: 开头的 style 里，导致字体不一致、代码块字体被改成非等宽）。
+      // 加粗/斜体等强调靠 <strong>/<em> 语义标签 + 项目 CSS，不依赖 inline style。
       const attrs = Array.from(child.attributes);
       const keepAttrs = [];
       for (const attr of attrs) {
         const name = attr.name.toLowerCase();
         if (['src', 'href', 'alt', 'title', 'colspan', 'rowspan'].includes(name)) {
           keepAttrs.push([name, attr.value]);
-        } else if (name === 'style' && /^(text-align|color|background-color)/i.test(attr.value)) {
-          // 仅保留少量安全的内联样式
-          const safe = attr.value.replace(/"/g, "'");
-          keepAttrs.push([name, safe]);
         }
       }
       while (child.attributes.length) child.removeAttribute(child.attributes[0].name);
@@ -426,6 +425,12 @@ function sanitizeHtml(raw, baseUrl) {
       }
 
       clean(child);
+      // 清理微信等残留的空块（<ul><li></li></ul> 占位会渲染成空的项目符号；
+      // 子节点被移除后变空的 section/div/p 也一并清理，避免留空隙）
+      if (['p', 'div', 'section', 'ul', 'ol', 'li'].includes(tag) &&
+          !child.textContent.trim() && !child.querySelector('img')) {
+        child.remove();
+      }
     }
   };
   clean(root);

@@ -823,6 +823,8 @@ body {
 .reader-article h3 { font-size: 17px; font-weight: 600; margin: 20px 0 10px; line-height: 1.4; color: var(--ink); }
 .reader-article h4 { font-size: 15px; font-weight: 600; margin: 16px 0 8px; color: var(--ink-2); }
 .reader-article p { margin: 10px 0; line-height: 1.9; font-size: 15px; font-family: var(--font-serif); color: var(--ink-2); }
+.reader-article section { margin: 10px 0; line-height: 1.9; font-size: 15px; font-family: var(--font-serif); color: var(--ink-2); }
+.reader-article h1, .reader-article h2, .reader-article h3, .reader-article h4, .reader-article h5, .reader-article h6 { font-family: var(--font-ui); }
 .reader-article img { max-width: 100%; height: auto; border-radius: 6px; margin: 12px 0; }
 .reader-article figure { margin: 14px 0; }
 .reader-article figcaption { font-size: 12px; color: var(--ink-4); text-align: center; margin-top: 6px; }
@@ -835,17 +837,18 @@ body {
   color: var(--text-light);
 }
 .reader-article pre {
-  background: var(--ink);
-  color: #f5f3ef;
-  padding: 16px;
+  background: var(--paper-mid);
+  color: var(--ink);
+  border: 1px solid var(--rule-light);
+  padding: 14px 16px;
   border-radius: 6px;
   overflow-x: auto;
   margin: 12px 0;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
-.reader-article code { font-family: "SF Mono", "Monaco", "Consolas", monospace; }
-.reader-article pre code { background: none; padding: 0; }
+.reader-article code { font-family: "Consolas", "Microsoft YaHei", "Microsoft YaHei UI", monospace; }
+.reader-article pre code { background: none; padding: 0; color: inherit; }
 .reader-article :not(pre) > code { background: var(--paper-mid); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
 .reader-article ul, .reader-article ol { padding-left: 24px; margin: 10px 0; }
 .reader-article li { margin: 4px 0; line-height: 1.8; font-family: var(--font-serif); color: var(--ink-2); }
