@@ -210,8 +210,11 @@
       });
       if (!ok) throw new Error(d.error || t('err.requestFailed'));
       renderResult(d);
+      // 解析完成：按钮消失（重新打开浮窗时若无未保存解析会再显示）
+      setHidden(summarizeBtn, true);
     } catch (err) {
       showError(err.message);
+      setHidden(summarizeBtn, false);
     } finally {
       summarizeBtn.disabled = false;
       setHidden($('loadingCard'), true);
@@ -339,6 +342,7 @@
         })
       });
       if (!ok) throw new Error(resp.error || t('err.saveFailed'));
+      state.currentResult = null; // 已保存，不再是待确认的解析
       saveBtn.textContent = t('btn.saved');
       setTimeout(() => {
         saveBtn.textContent = t('btn.saveToLibrary');
@@ -370,19 +374,39 @@
 
   // ===== 添加剪藏浮窗开关 =====
   function openSummarizeModal() {
-    // 重置为初始状态
-    setHidden($('resultCard'), true);
     setHidden($('loadingCard'), true);
     setHidden($('errorCard'), true);
-    urlInput.value = '';
     saveBtn.textContent = t('btn.saveToLibrary');
-    saveBtn.disabled = true;
+    if (state.currentResult) {
+      // 有未保存的解析：直接回显，解析按钮保持消失
+      urlInput.value = state.currentResult.url || '';
+      renderResult(state.currentResult);
+      setHidden(summarizeBtn, true);
+      saveBtn.disabled = false;
+    } else {
+      // 无待确认解析：重置为初始状态
+      setHidden($('resultCard'), true);
+      urlInput.value = '';
+      saveBtn.disabled = true;
+      setHidden(summarizeBtn, false);
+    }
     refreshProviderSelect();
     setHidden($('summarizeModal'), false);
     setTimeout(() => urlInput.focus(), 50);
   }
   function closeSummarizeModal() {
     setHidden($('summarizeModal'), true);
+  }
+
+  /** 清除未保存的解析结果（二次确认，防误触丢失） */
+  function clearUnsavedResult() {
+    if (!state.currentResult) return;
+    if (!window.confirm(t('confirm.clearResult'))) return;
+    state.currentResult = null;
+    setHidden($('resultCard'), true);
+    setHidden(summarizeBtn, false);
+    urlInput.value = '';
+    saveBtn.disabled = true;
   }
 
   // ============ 剪藏库 Tab ============
@@ -2006,6 +2030,7 @@
     updateParseModeThumb();
 
     summarizeBtn.addEventListener('click', handleSummarize);
+    $('clearResultBtn').addEventListener('click', clearUnsavedResult);
     urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSummarize(); });
     saveBtn.addEventListener('click', handleSave);
 

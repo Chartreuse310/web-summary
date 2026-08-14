@@ -223,6 +223,8 @@ body {
 .error-card p { color: var(--red); font-size: 14px; }
 
 /* ===== 结果 ===== */
+.result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.result-head .btn-secondary { flex-shrink: 0; height: 28px; padding: 0 12px; font-size: 12px; }
 .result-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; line-height: 1.4; color: var(--ink); }
 .meta-line {
   font-size: 12px;
