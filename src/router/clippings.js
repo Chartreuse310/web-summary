@@ -61,6 +61,7 @@ router.get('/', (req, res) => {
     const result = listClippings({
       q: req.query.q,
       tag: req.query.tag,
+      author: req.query.author,
       sort: req.query.sort,
       order: req.query.order,
       limit: parseInt(req.query.limit, 10) || 50,

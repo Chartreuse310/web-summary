@@ -295,7 +295,7 @@ function insertClipping(d) {
 /**
  * 列表查询（带搜索、tag 筛选、分页）
  */
-function listClippings({ q, tag, sort = 'recent', order = 'desc', limit = 50, offset = 0, from, to, lang } = {}) {
+function listClippings({ q, tag, author, sort = 'recent', order = 'desc', limit = 50, offset = 0, from, to, lang } = {}) {
   const where = [];
   const params = {};
 
@@ -312,6 +312,13 @@ function listClippings({ q, tag, sort = 'recent', order = 'desc', limit = 50, of
     // tags 字段是 JSON 数组字符串，用 LIKE 粗略匹配（个人库量级够用）
     where.push('tags LIKE @tag');
     params.tag = `%"${tag.replace(/"/g, '\\"')}"%`;
+  }
+  if (author === '__none__') {
+    // 「未知作者」：无作者信息的剪藏（author 为空数组或空串）
+    where.push(`(author IS NULL OR author = '' OR author = '[]')`);
+  } else if (author) {
+    where.push('author LIKE @author');
+    params.author = `%"${author.replace(/"/g, '\\"')}"%`;
   }
   if (from) {
     where.push('saved_at >= @from');

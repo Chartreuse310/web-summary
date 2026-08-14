@@ -40,6 +40,7 @@
     editSnapshot: null,           // 编辑前的原始数据快照（用于取消恢复）
     timeFilter: null,             // 剪藏库时间聚类筛选 { from, to, label, grp, key }
     tagFilter: '',                // 剪藏库右栏标签筛选
+    authorFilter: '',             // 剪藏库右栏作者筛选（'__none__' 表示未知作者）
     sortKey: 'recent',            // 排序键：recent | tokens | cost
     sortOrder: 'desc'             // 排序方向：desc 倒序 | asc 正序
   };
@@ -394,6 +395,7 @@
     const params = new URLSearchParams();
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (state.tagFilter) params.set('tag', state.tagFilter);
+    if (state.authorFilter) params.set('author', state.authorFilter);
     if (state.sortKey) params.set('sort', state.sortKey);
     params.set('order', state.sortOrder);
     if (state.timeFilter) {
@@ -623,7 +625,11 @@
 
     const authors = (stats.byAuthor || []).slice(0, 12);
     $('libAuthorRank').innerHTML = authors.length
-      ? authors.map((a) => '<div class="rank-row-mini" data-author="' + escapeHtml(a.author) + '" title="' + escapeHtml(t('rank.searchByAuthor')) + '"><span class="rname">' + escapeHtml(a.author) + '</span><span class="rcount">' + a.count + '</span></div>').join('')
+      ? authors.map((a) => {
+        // 「未知」是统计端给无作者剪藏的合成标签，筛选走 __none__ 哨兵值
+        const unknown = a.author === t('dist.unknown');
+        return '<div class="rank-row-mini" data-author="' + escapeHtml(unknown ? '__none__' : a.author) + '" data-label="' + escapeHtml(a.author) + '" title="' + escapeHtml(t('rank.searchByAuthor')) + '"><span class="rname">' + escapeHtml(a.author) + '</span><span class="rcount">' + a.count + '</span></div>';
+      }).join('')
       : '<p class="empty-hint">' + escapeHtml(t('empty.authors')) + '</p>';
 
     $('libTagRank').querySelectorAll('.rank-row-mini').forEach((el) => {
@@ -634,11 +640,35 @@
       });
     });
     $('libAuthorRank').querySelectorAll('.rank-row-mini').forEach((el) => {
+      el.classList.toggle('active', !!state.authorFilter && el.dataset.author === state.authorFilter);
       el.addEventListener('click', () => {
-        searchInput.value = el.dataset.author;
-        loadLibrary();
+        if (state.authorFilter === el.dataset.author) clearAuthorFilter();
+        else applyAuthorFilter(el.dataset.author, el.dataset.label);
       });
     });
+  }
+
+  /** 作者筛选：与标签筛选一致——右栏高亮 + 中间带关闭按钮的卡片 */
+  function applyAuthorFilter(author, label) {
+    if (!author) return;
+    state.authorFilter = author;
+    renderAuthorBadge(label || author);
+    loadLibrary();
+  }
+
+  function clearAuthorFilter() {
+    state.authorFilter = '';
+    setHidden($('authorFilterBadge'), true);
+    $('authorFilterBadge').innerHTML = '';
+    loadLibrary();
+  }
+
+  function renderAuthorBadge(label) {
+    const badge = $('authorFilterBadge');
+    badge.innerHTML = escapeHtml(t('badge.authorFilter')) + escapeHtml(label) +
+      '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
+    setHidden(badge, false);
+    badge.querySelector('.clear-time').addEventListener('click', clearAuthorFilter);
   }
 
   // ============ 阅读页（三栏视图）============
@@ -2087,6 +2117,11 @@
       tagFilterBadge.innerHTML = escapeHtml(t('badge.tagFilter')) + escapeHtml(state.tagFilter) +
         '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
       tagFilterBadge.querySelector('.clear-time').addEventListener('click', clearTagFilter);
+    }
+    if (state.authorFilter) {
+      // 找回展示用标签（'__none__' 显示为「未知」）
+      const row = $('libAuthorRank').querySelector('.rank-row-mini.active');
+      renderAuthorBadge(row ? row.dataset.label : state.authorFilter);
     }
     // 按当前 Tab 刷新对应数据
     if ($('panel-home').classList.contains('active')) loadHome();
