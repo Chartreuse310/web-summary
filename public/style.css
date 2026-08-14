@@ -78,7 +78,7 @@ body {
 .lang-toggle {
   display: inline-flex;
   border: 1px solid var(--rule-light);
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 2px;
   background: var(--surface);
 }
@@ -89,7 +89,7 @@ body {
   font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 4px;
   cursor: pointer;
   line-height: 1.4;
   transition: background 0.15s, color 0.15s;
@@ -333,7 +333,9 @@ body {
   gap: 10px;
   align-items: center;
 }
-.search-row .url-input { flex: 1; }
+.search-row .url-input { flex: 1; height: 38px; padding: 0 13px; }
+/* 与排序滑块总高（30 按钮 + 3×2 内边距 + 1×2 边框 = 38px）对齐 */
+.search-row .btn-secondary { height: 38px; padding: 0 16px; }
 
 /* 排序分段控件（搜索行右侧）：滑块式分段，选中项由滑动的 thumb 承载 */
 .sort-group {
@@ -348,7 +350,7 @@ body {
   padding: 3px;
   background: var(--paper-mid);
   border: 1px solid var(--rule-light);
-  border-radius: 999px;
+  border-radius: 6px;
 }
 .sort-thumb {
   position: absolute;
@@ -357,7 +359,7 @@ body {
   left: 0;
   width: 0;
   background: var(--forest);
-  border-radius: 999px;
+  border-radius: 4px;
   transition: left 0.2s ease, width 0.2s ease;
 }
 .sort-btn {
@@ -369,7 +371,7 @@ body {
   padding: 0 12px;
   height: 30px;
   font-size: 13px;
-  border-radius: 999px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.15s;
@@ -592,6 +594,15 @@ body {
   margin-bottom: 16px;
 }
 .provider-list { display: flex; flex-direction: column; gap: 10px; }
+/* 界面语言（原顶栏中英切换移入设置页）*/
+.settings-lang {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--rule-light);
+}
 /* 解析模式单选（设置页）*/
 .settings-parsemode {
   margin-top: 16px;
@@ -605,16 +616,7 @@ body {
   color: var(--ink-2);
   margin-bottom: 8px;
 }
-.settings-radio {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 16px;
-  font-size: 13px;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-.settings-radio input { cursor: pointer; }
+.settings-parsemode .sort-track { margin-bottom: 4px; }
 .settings-parsemode-hint {
   margin-top: 8px;
   font-size: 12px;
@@ -632,7 +634,7 @@ body {
 .provider-item.disabled { opacity: 0.5; }
 .provider-toggle {
   width: 40px; height: 22px;
-  border-radius: 11px;
+  border-radius: 6px;
   background: var(--ink-5);
   border: none;
   cursor: pointer;
@@ -643,15 +645,15 @@ body {
 .provider-toggle::after {
   content: '';
   position: absolute;
-  width: 18px; height: 18px;
-  border-radius: 50%;
+  width: 16px; height: 16px;
+  border-radius: 4px;
   background: #fff;
-  top: 2px; left: 2px;
+  top: 3px; left: 3px;
   transition: left 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .provider-toggle.on { background: var(--forest); }
-.provider-toggle.on::after { left: 20px; }
+.provider-toggle.on::after { left: 21px; }
 .provider-info { flex: 1; min-width: 0; }
 .provider-name { font-size: 14px; font-weight: 600; color: var(--ink); }
 .provider-meta { font-size: 11px; color: var(--ink-4); margin-top: 2px; word-break: break-all; }

@@ -60,7 +60,7 @@
       // 面板显示后需重新校准
       requestAnimationFrame(updateSortThumb);
     }
-    if (name === 'settings') { renderProviderList(); loadStats(); }
+    if (name === 'settings') { renderProviderList(); loadStats(); requestAnimationFrame(updateParseModeThumb); }
   }
 
   // ============ 工具函数 ============
@@ -508,6 +508,16 @@
   function updateSortThumb() {
     const thumb = $('sortThumb');
     const active = sortGroup.querySelector('.sort-btn.active');
+    if (!thumb || !active) return;
+    thumb.style.left = active.offsetLeft + 'px';
+    thumb.style.width = active.offsetWidth + 'px';
+  }
+
+  /** 解析模式滑块（设置页）：同样依赖按钮实际宽度，面板隐藏时无效，需显示后校准 */
+  function updateParseModeThumb() {
+    const thumb = $('parseModeThumb');
+    const track = $('parseModeTrack');
+    const active = track && track.querySelector('.sort-btn.active');
     if (!thumb || !active) return;
     thumb.style.left = active.offsetLeft + 'px';
     thumb.style.width = active.offsetWidth + 'px';
@@ -1899,15 +1909,18 @@
 
   // ============ 事件绑定 ============
   function initEvents() {
-    // 解析模式单选：读 localStorage 设选中，change 时写回
-    const parseModeRadios = document.querySelectorAll('input[name="parseMode"]');
-    const savedMode = localStorage.getItem(PARSE_MODE_KEY) || 'js';
-    parseModeRadios.forEach((r) => { r.checked = (r.value === savedMode); });
-    parseModeRadios.forEach((r) => {
-      r.addEventListener('change', () => {
-        if (r.checked) localStorage.setItem(PARSE_MODE_KEY, r.value);
+    // 解析模式滑块：读 localStorage 设选中，点击切换并写回
+    const parseModeTrack = $('parseModeTrack');
+    parseModeTrack.querySelectorAll('.sort-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.mode === getParseMode());
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('active')) return;
+        parseModeTrack.querySelectorAll('.sort-btn').forEach((b) => b.classList.toggle('active', b === btn));
+        localStorage.setItem(PARSE_MODE_KEY, btn.dataset.mode);
+        updateParseModeThumb();
       });
     });
+    updateParseModeThumb();
 
     summarizeBtn.addEventListener('click', handleSummarize);
     urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSummarize(); });
@@ -2062,6 +2075,7 @@
     // 重新渲染动态文案（排序方向 title、标签筛选卡片等）；排序键文案宽度会变，滑块需重定位
     updateSortDirBtn();
     requestAnimationFrame(updateSortThumb);
+    requestAnimationFrame(updateParseModeThumb);
     if (state.tagFilter) {
       tagFilterBadge.innerHTML = escapeHtml(t('badge.tagFilter')) + escapeHtml(state.tagFilter) +
         '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';

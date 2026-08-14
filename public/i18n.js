@@ -127,6 +127,7 @@
       'usage.priceUnknown': '价格未知',
 
       'settings.provider': '服务商配置',
+      'settings.language': '界面语言',
       'btn.addProvider': '+ 添加服务商',
       'settings.hint': 'API Key 仅保存在你当前浏览器（localStorage），不进服务器、不落盘。换浏览器需重新填写。',
       'settings.parseMode': '解析模式',
@@ -317,6 +318,7 @@
       'usage.priceUnknown': 'Price unknown',
 
       'settings.provider': 'Provider Settings',
+      'settings.language': 'Language',
       'btn.addProvider': '+ Add Provider',
       'settings.hint': 'API Keys are stored only in your browser (localStorage), never sent to the server or persisted. Re-enter when switching browsers.',
       'settings.parseMode': 'Parse Mode',

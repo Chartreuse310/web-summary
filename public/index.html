@@ -17,10 +17,6 @@
         <p class="subtitle" data-i18n="header.subtitle">抓取网页 → AI 中文摘要 → 永久收藏与统计</p>
       </div>
       <div class="header-actions">
-        <div class="lang-toggle" id="langToggle" title="切换语言 / Switch language">
-          <button type="button" data-lang="zh" class="active">中</button>
-          <button type="button" data-lang="en">EN</button>
-        </div>
         <button class="btn-primary header-add-btn" id="homeAddBtn" type="button" data-i18n="btn.addClipping">+ 添加剪藏</button>
       </div>
     </header>
@@ -143,6 +139,13 @@
       <div class="settings-main">
         <!-- 左：服务商配置 -->
         <div class="card settings-provider-col">
+          <div class="settings-lang">
+            <span class="settings-parsemode-label" data-i18n="settings.language">界面语言</span>
+            <div class="lang-toggle" id="langToggle" title="切换语言 / Switch language">
+              <button type="button" data-lang="zh" class="active">中</button>
+              <button type="button" data-lang="en">EN</button>
+            </div>
+          </div>
           <div class="settings-header">
             <span class="stats-title" data-i18n="settings.provider">服务商配置</span>
             <button id="addProviderBtn" class="btn-secondary" type="button" data-i18n="btn.addProvider">+ 添加服务商</button>
@@ -152,8 +155,11 @@
 
           <div class="settings-parsemode">
             <span class="settings-parsemode-label" data-i18n="settings.parseMode">解析模式</span>
-            <label class="settings-radio"><input type="radio" name="parseMode" value="js" checked><span data-i18n="settings.parseModeJs">js 解析全文</span></label>
-            <label class="settings-radio"><input type="radio" name="parseMode" value="ai"><span data-i18n="settings.parseModeAi">AI 解析全文</span></label>
+            <div class="sort-track" id="parseModeTrack">
+              <span class="sort-thumb" id="parseModeThumb" aria-hidden="true"></span>
+              <button type="button" class="sort-btn active" data-mode="js" data-i18n="settings.parseModeJs">js 解析全文</button>
+              <button type="button" class="sort-btn" data-mode="ai" data-i18n="settings.parseModeAi">AI 解析全文</button>
+            </div>
             <p class="settings-parsemode-hint" data-i18n="settings.parseModeHint">js：规则解析（快、免费）；AI：在 js 基础上用 AI 增强大纲（更全但消耗 token）。</p>
           </div>
         </div>
