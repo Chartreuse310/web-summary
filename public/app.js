@@ -38,7 +38,10 @@
     currentReaderClipping: null, // 当前阅读视图打开的剪藏对象
     isEditing: false,             // 是否处于编辑模式
     editSnapshot: null,           // 编辑前的原始数据快照（用于取消恢复）
-    timeFilter: null              // 剪藏库时间聚类筛选 { from, to, label, grp, key }
+    timeFilter: null,             // 剪藏库时间聚类筛选 { from, to, label, grp, key }
+    tagFilter: '',                // 剪藏库右栏标签筛选
+    sortKey: 'recent',            // 排序键：recent | tokens | cost
+    sortOrder: 'desc'             // 排序方向：desc 倒序 | asc 正序
   };
 
   // ============ Tab 切换 ============
@@ -378,14 +381,16 @@
   // ============ 剪藏库 Tab ============
   const libraryList = $('libraryList');
   const searchInput = $('searchInput');
-  const tagFilter = $('tagFilter');
-  const sortBy = $('sortBy');
+  const sortGroup = $('sortGroup');
+  const sortDirBtn = $('sortDirBtn');
+  const tagFilterBadge = $('tagFilterBadge');
 
   async function loadLibrary() {
     const params = new URLSearchParams();
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
-    if (tagFilter.value) params.set('tag', tagFilter.value);
-    if (sortBy.value) params.set('sort', sortBy.value);
+    if (state.tagFilter) params.set('tag', state.tagFilter);
+    if (state.sortKey) params.set('sort', state.sortKey);
+    params.set('order', state.sortOrder);
     if (state.timeFilter) {
       params.set('from', state.timeFilter.from);
       params.set('to', state.timeFilter.to);
@@ -397,7 +402,6 @@
     ]);
     if (!listRes.ok) { libraryList.innerHTML = '<p class="empty-hint">' + escapeHtml(t('err.loadFailed')) + '</p>'; return; }
     renderLibrary(listRes.d.items);
-    refreshTagFilter();
     if (statsRes.ok) renderLibraryRails(statsRes.d);
     if (clustersRes.ok) renderTimeClusters(clustersRes.d);
   }
@@ -460,15 +464,39 @@
     });
   }
 
-  async function refreshTagFilter() {
-    const { ok, d } = await api('/api/stats');
-    if (!ok) return;
-    const cur = tagFilter.value;
-    tagFilter.innerHTML = '<option value="">' + escapeHtml(t('filter.allTags')) + '</option>';
-    (d.topTags || []).forEach(({ tag, count }) => {
-      tagFilter.appendChild(new Option(`${tag} (${count})`, tag));
+  /** 标签筛选：与左栏时间筛选一致——高亮 + 中间带关闭按钮的卡片 */
+  function applyTagFilter(tag) {
+    if (!tag || state.tagFilter === tag) return;
+    state.tagFilter = tag;
+    tagFilterBadge.innerHTML = escapeHtml(t('badge.tagFilter')) + escapeHtml(tag) +
+      '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
+    setHidden(tagFilterBadge, false);
+    tagFilterBadge.querySelector('.clear-time').addEventListener('click', clearTagFilter);
+    syncTagActive();
+    loadLibrary();
+  }
+
+  function clearTagFilter() {
+    state.tagFilter = '';
+    setHidden(tagFilterBadge, true);
+    tagFilterBadge.innerHTML = '';
+    syncTagActive();
+    loadLibrary();
+  }
+
+  /** 右栏标签排行：按当前筛选恢复高亮 */
+  function syncTagActive() {
+    $('libTagRank').querySelectorAll('.rank-row-mini').forEach((el) => {
+      el.classList.toggle('active', !!state.tagFilter && el.dataset.tag === state.tagFilter);
     });
-    if (cur) tagFilter.value = cur;
+  }
+
+  /** 排序方向按钮：图标 + title 跟随 state.sortOrder */
+  function updateSortDirBtn() {
+    const desc = state.sortOrder !== 'asc';
+    sortDirBtn.textContent = desc ? '↓' : '↑';
+    sortDirBtn.title = t(desc ? 'sort.desc' : 'sort.asc');
+    sortDirBtn.setAttribute('data-i18n-title', desc ? 'sort.desc' : 'sort.asc');
   }
 
   // ===== 时间聚类渲染 + 筛选（剪藏库左栏）=====
@@ -570,9 +598,10 @@
       : '<p class="empty-hint">' + escapeHtml(t('empty.authors')) + '</p>';
 
     $('libTagRank').querySelectorAll('.rank-row-mini').forEach((el) => {
+      el.classList.toggle('active', !!state.tagFilter && el.dataset.tag === state.tagFilter);
       el.addEventListener('click', () => {
-        tagFilter.value = el.dataset.tag;
-        loadLibrary();
+        if (state.tagFilter === el.dataset.tag) clearTagFilter();
+        else applyTagFilter(el.dataset.tag);
       });
     });
     $('libAuthorRank').querySelectorAll('.rank-row-mini').forEach((el) => {
@@ -1527,8 +1556,7 @@
     wrap.querySelectorAll('.freq-tag').forEach((el) => {
       el.addEventListener('click', () => {
         switchTab('library');
-        tagFilter.value = el.dataset.tag;
-        loadLibrary();
+        applyTagFilter(el.dataset.tag);
       });
     });
   }
@@ -1876,8 +1904,20 @@
       clearTimeout(searchTimer);
       searchTimer = setTimeout(loadLibrary, 300);
     });
-    tagFilter.addEventListener('change', loadLibrary);
-    sortBy.addEventListener('change', loadLibrary);
+    // 排序：分段按钮切换排序键；方向按钮倒序/正序
+    sortGroup.querySelectorAll('.sort-btn[data-sort]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (state.sortKey === btn.dataset.sort) return;
+        state.sortKey = btn.dataset.sort;
+        sortGroup.querySelectorAll('.sort-btn[data-sort]').forEach((b) => b.classList.toggle('active', b === btn));
+        loadLibrary();
+      });
+    });
+    sortDirBtn.addEventListener('click', () => {
+      state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+      updateSortDirBtn();
+      loadLibrary();
+    });
     $('refreshBtn').addEventListener('click', loadLibrary);
 
     // 阅读页：返回 + 删除
@@ -2004,8 +2044,13 @@
   /** 切换语言后按当前所在视图重渲染动态内容 */
   function onLangChange() {
     syncLangToggle();
-    // 重新渲染 <option> 等动态文案
-    refreshTagFilter();
+    // 重新渲染动态文案（排序方向 title、标签筛选卡片等）
+    updateSortDirBtn();
+    if (state.tagFilter) {
+      tagFilterBadge.innerHTML = escapeHtml(t('badge.tagFilter')) + escapeHtml(state.tagFilter) +
+        '<span class="clear-time" title="' + escapeHtml(t('clearFilter')) + '">×</span>';
+      tagFilterBadge.querySelector('.clear-time').addEventListener('click', clearTagFilter);
+    }
     // 按当前 Tab 刷新对应数据
     if ($('panel-home').classList.contains('active')) loadHome();
     if ($('panel-library').classList.contains('active')) loadLibrary();

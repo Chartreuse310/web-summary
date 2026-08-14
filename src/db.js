@@ -295,7 +295,7 @@ function insertClipping(d) {
 /**
  * 列表查询（带搜索、tag 筛选、分页）
  */
-function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, to, lang } = {}) {
+function listClippings({ q, tag, sort = 'recent', order = 'desc', limit = 50, offset = 0, from, to, lang } = {}) {
   const where = [];
   const params = {};
 
@@ -323,12 +323,14 @@ function listClippings({ q, tag, sort = 'recent', limit = 50, offset = 0, from, 
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  // order：asc 正序 / desc 倒序（默认）
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
   const orderSql =
     sort === 'tokens'
-      ? 'ORDER BY total_tokens DESC'
+      ? `ORDER BY total_tokens ${dir}`
       : sort === 'cost'
-        ? 'ORDER BY cost DESC'
-        : 'ORDER BY saved_at DESC';
+        ? `ORDER BY cost ${dir}`
+        : `ORDER BY saved_at ${dir}`;
 
   const rows = db
     .prepare(

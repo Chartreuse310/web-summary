@@ -101,18 +101,21 @@
         <!-- 中栏：搜索 + 列表 -->
         <div class="library-main">
           <div class="card library-toolbar">
-            <input type="search" id="searchInput" class="url-input"
-                   placeholder="搜索标题/摘要/作者…" autocomplete="off" data-i18n-ph="search.placeholder" />
-            <div class="toolbar-row">
-              <select id="tagFilter" class="select"><option value="" data-i18n="filter.allTags">全部标签</option></select>
-              <select id="sortBy" class="select">
-                <option value="recent" data-i18n="sort.recent">最近保存</option>
-                <option value="tokens" data-i18n="sort.tokens">Token 用量</option>
-                <option value="cost" data-i18n="sort.cost">费用</option>
-              </select>
+            <div class="search-row">
+              <input type="search" id="searchInput" class="url-input"
+                     placeholder="搜索标题/摘要/作者…" autocomplete="off" data-i18n-ph="search.placeholder" />
+              <div class="sort-group" id="sortGroup">
+                <button type="button" class="sort-btn active" data-sort="recent" data-i18n="sort.recent">最近保存</button>
+                <button type="button" class="sort-btn" data-sort="tokens" data-i18n="sort.tokens">Token 用量</button>
+                <button type="button" class="sort-btn" data-sort="cost" data-i18n="sort.cost">费用</button>
+                <button type="button" class="sort-btn sort-dir" id="sortDirBtn" data-i18n-title="sort.desc">↓</button>
+              </div>
               <button id="refreshBtn" class="btn-secondary" type="button" data-i18n="btn.refresh">刷新</button>
             </div>
-            <div id="timeFilterBadge" class="time-filter-badge" hidden></div>
+            <div class="filter-badges">
+              <div id="timeFilterBadge" class="time-filter-badge" hidden></div>
+              <div id="tagFilterBadge" class="time-filter-badge" hidden></div>
+            </div>
           </div>
 
           <div id="libraryList" class="library-list">

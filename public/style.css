@@ -328,13 +328,39 @@ body {
 
 /* ===== 剪藏库 ===== */
 .library-toolbar { position: sticky; top: 10px; z-index: 10; }
-.toolbar-row {
+.search-row {
   display: flex;
   gap: 10px;
-  margin-top: 10px;
   align-items: center;
 }
-.toolbar-row .select { flex: 1; }
+.search-row .url-input { flex: 1; }
+
+/* 排序分段按钮（搜索行右侧） */
+.sort-group {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--rule-light);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.sort-btn {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-3);
+  padding: 0 12px;
+  height: 36px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.sort-btn + .sort-btn { border-left: 1px solid var(--rule-light); }
+.sort-btn:hover { background: var(--primary-light); color: var(--primary); }
+.sort-btn.active { background: var(--forest); color: #fff; }
+.sort-btn.sort-dir { min-width: 36px; padding: 0; font-weight: 700; }
+.filter-badges { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .library-list { display: flex; flex-direction: column; gap: 10px; }
 .empty-hint {
@@ -639,7 +665,9 @@ body {
   .stats-summary { grid-template-columns: 1fr; }
   .stat-big { border-right: 0; border-bottom: 1px solid var(--rule-light); }
   .stat-big:last-child { border-bottom: 0; }
-  .toolbar-row { flex-wrap: wrap; }
+  .search-row { flex-wrap: wrap; }
+  .sort-group { order: 3; width: 100%; }
+  .sort-btn { flex: 1; }
   .title { font-size: 22px; }
   .tab { font-size: 12px; padding: 8px 4px; }
 }
@@ -1230,6 +1258,12 @@ body {
 .rank-list .rank-row-mini:hover { background: var(--primary-light); color: var(--primary); }
 .rank-list .rank-row-mini .rname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
 .rank-list .rank-row-mini .rcount { font-variant-numeric: tabular-nums; opacity: 0.7; flex-shrink: 0; }
+
+/* 右栏标签排行：选中高亮（与左栏时间簇一致）。需放在 .rank-list 规则之后，
+   否则字体颜色会被上面的默认规则（同为两级选择器）覆盖 */
+.rank-list .rank-row-mini.active { background: var(--forest); color: #fff; }
+.rank-list .rank-row-mini.active:hover { background: var(--forest-2); color: #fff; }
+.rank-list .rank-row-mini.active .rcount { color: inherit; opacity: 0.85; }
 
 /* ================================================== */
 /* ===== 添加剪藏浮窗（加宽）=====                     */
