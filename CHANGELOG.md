@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-20
+
+### 安全
+
+- **修复剪藏正文 HTML 清洗的协议绕过 XSS**：`sanitizeHtml` 原先仅用 `new URL(href, base)` 解析链接 / 图片地址后原样写回，但 `new URL('javascript:alert(1)', base)` 不会抛错且会保留 `javascript:` 协议——剪藏正文里混入 `<a href="javascript:...">` 或 `data:text/html,<script>` 的恶意链接，用户在阅读视图点击即可执行任意脚本（XSS）。现按协议白名单放行（链接仅 `http(s)` / `mailto` / `tel`，图片仅 `http(s)` / `data:image/*`），危险协议删除 `href`、保留可见文本，无 `src` 的图片残骸移除。
+- **服务端改为仅绑定回环地址**：该工具无身份认证，且 `/api/summarize` 与 `/api/test-provider` 会按请求体里的 `baseUrl` 让本服务发起任意 POST（SSRF 原语）。原先 `app.listen(PORT)` 默认绑定 `0.0.0.0`，同网段任意主机可读写整个剪藏库并借本服务探测内网。现显式绑定 `127.0.0.1`，仅本机可访问。如确需局域网访问，请在反向代理层加鉴权后再暴露。
+
+### 内部
+
+- 删除 `src/llm.js` 中重复定义的 `flattenModels`（两份完全相同的函数声明，靠函数提升使后者生效），保留单一定义。
+
 ## [1.5.0] - 2026-08-14
 
 ### 新增
