@@ -154,7 +154,10 @@ app.use('/api', highlightsRouter);
 
 app.use((req, res) => res.status(404).json({ error: t(pickLang(req), 'err.notFound') }));
 
-app.listen(PORT, () => {
+// 仅绑定到本机回环地址：该工具无身份认证，且 /api/summarize 与 /api/test-provider
+// 会按请求体里的 baseUrl 让本服务发起任意 POST（SSRF 原语）。若 0.0.0.0 暴露到局域网，
+// 同网段任意主机可读写整个剪藏库并借本服务探测内网。回环绑定规避此风险。
+app.listen(PORT, '127.0.0.1', () => {
   const configured = providers
     .filter((p) => process.env[p.apiKeyEnv])
     .map((p) => p.name)

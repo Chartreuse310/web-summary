@@ -375,6 +375,11 @@ function sanitizeHtml(raw, baseUrl) {
       child.removeAttribute('onload');
       child.removeAttribute('onerror');
 
+      // 允许的 URL 协议白名单：拦截 javascript: / data: / vbscript: 等危险协议。
+      // 注意 new URL('javascript:alert(1)', base) 不会抛错且会原样保留 javascript: 协议，
+      // 必须显式校验 protocol，否则点击链接会执行任意脚本（XSS）。
+      const SAFE_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:'];
+
       // 图片：src 绝对化（data-src 已在清属性前回填到 src）；无 src 的占位残骸移除
       if (tag === 'img') {
         const src = child.getAttribute('src');
@@ -385,21 +390,40 @@ function sanitizeHtml(raw, baseUrl) {
         try {
           // 已本地化的图片（/images/...）跳过绝对化，避免重新解析/编辑保存时
           // 被错误拼成原文章域名下的路径
-          if (!/^\/images\//.test(src)) {
-            child.setAttribute('src', new URL(src, baseUrl).href);
+          if (/^\/images\//.test(src)) {
+            child.setAttribute('src', src);
+          } else {
+            const resolved = new URL(src, baseUrl);
+            // 图片只允许 http(s)；data:image/* 也放行（内联 base64 图），其余协议丢弃
+            if (resolved.protocol === 'http:' || resolved.protocol === 'https:') {
+              child.setAttribute('src', resolved.href);
+            } else if (/^data:image\//i.test(src)) {
+              child.setAttribute('src', src);
+            } else {
+              child.remove();
+              continue;
+            }
           }
-        } catch { /* 忽略非法 src */ }
+        } catch { child.remove(); continue; /* 非法 src */ }
         child.setAttribute('loading', 'lazy');
       }
-      // 链接：href 解析 + 安全跳转
+      // 链接：href 解析 + 协议白名单 + 安全跳转
       if (tag === 'a') {
         const href = child.getAttribute('href');
         if (href) {
           try {
-            child.setAttribute('href', new URL(href, baseUrl).href);
-            child.setAttribute('target', '_blank');
-            child.setAttribute('rel', 'noopener noreferrer');
-          } catch { /* 忽略 */ }
+            const resolved = new URL(href, baseUrl);
+            if (SAFE_PROTOCOLS.includes(resolved.protocol)) {
+              child.setAttribute('href', resolved.href);
+              child.setAttribute('target', '_blank');
+              child.setAttribute('rel', 'noopener noreferrer');
+            } else {
+              // javascript: / data: / vbscript: 等 → 删 href，保留文本
+              child.removeAttribute('href');
+            }
+          } catch {
+            child.removeAttribute('href');
+          }
         }
       }
       // H 标签：加 id 便于目录锚点跳转

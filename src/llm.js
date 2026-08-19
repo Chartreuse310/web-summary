@@ -98,23 +98,6 @@ function buildSystemPrompt(lang) {
 }
 
 /**
- * 把服务商的 models 配置（可能含分组）扁平化为模型 id 数组
- * @param {Array} modelsConfig providers[i].models
- * @returns {string[]} 模型 id 列表
- */
-function flattenModels(modelsConfig) {
-  const out = [];
-  for (const entry of modelsConfig) {
-    if (typeof entry === 'string') {
-      out.push(entry);
-    } else if (entry && Array.isArray(entry.items)) {
-      out.push(...entry.items);
-    }
-  }
-  return out;
-}
-
-/**
  * 解析服务商来源：
  *   - 优先用前端传入的 provider 对象（{baseUrl, apiKey, model, name?, models?}）
  *   - 兜底用 providerId 查 .env（兼容老用法）
